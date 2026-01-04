@@ -597,6 +597,50 @@ header h1 {
   display: none;
 }
 
+/* Validation status styling */
+.validation-status {
+  margin-left: 10px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.validation-success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.validation-error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+/* Secondary button styling */
+.btn-secondary {
+  background-color: #f0f0f0;
+  color: #333;
+  border: 2px solid #e0e0e0;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+.btn-secondary:hover {
+  background-color: #e0e0e0;
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.btn-secondary:active {
+  transform: translateY(1px);
+}
+
 /* Autocomplete dropdown styling - Professional GitHub-like design */
 .autocomplete-results {
   position: absolute;
