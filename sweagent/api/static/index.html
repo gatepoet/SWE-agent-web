@@ -106,7 +106,21 @@
                         <small>💡 Control whether the agent can execute bash commands</small>
                     </div>
                 </div>
-            </details>
+            <!-- GitHub Token Input -->
+            <div class="config-section">
+                <summary>🔑 GitHub Token (Optional)</summary>
+                <div class="config-options">
+                    <div class="config-group">
+                        <label for="githubToken">GitHub Personal Access Token:</label>
+                        <input type="password" id="githubToken" placeholder="ghp_... or github_pat_..." autocomplete="off">
+                        <small id="tokenHint">💡 Enter your GitHub token for private repository access and higher rate limits</small>
+                    </div>
+                    <div class="config-group">
+                        <button id="validateTokenBtn" class="btn-secondary">Validate Token</button>
+                        <span id="tokenValidationStatus" class="validation-status hidden"></span>
+                    </div>
+                </div>
+            </div>
 
             <!-- Config File Upload -->
             <div class="config-section">
