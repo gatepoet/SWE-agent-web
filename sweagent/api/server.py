@@ -63,7 +63,7 @@ def parse_github_query(query: str) -> str:
     return f"{query} in:name OR {query} in:owner"
 
 
-def search_github_repos(query: str, max_results: int = 10) -> list[dict[str, Any]]:
+def search_github_repos(query: str, max_results: int = 10, github_token: str = "") -> list[dict[str, Any]]:
     """Search for GitHub repositories using the GitHub API with caching and improved query parsing."""
     import requests
 
@@ -81,11 +81,11 @@ def search_github_repos(query: str, max_results: int = 10) -> list[dict[str, Any
             logger.debug(f"Using cached results for query: {query}")
             return _github_search_cache[cache_key].copy()
 
-    # Check if we have a GitHub token in environment variables
-    github_token = os.getenv("GITHUB_TOKEN", "")
+    # Use provided token or fall back to environment variable
+    token = github_token if github_token else os.getenv("GITHUB_TOKEN", "")
     headers = {}
-    if github_token:
-        headers["Authorization"] = f"token {github_token}"
+    if token:
+        headers["Authorization"] = f"token {token}"
     headers["Accept"] = "application/vnd.github+json"
     # Build search URL
     search_url = (
@@ -328,7 +328,7 @@ def create_agent_config(
 
 
 async def run_agent_async(
-    run_id: str, problem_statement: str, config_path: str | None = None, inline_config: dict[str, Any] | None = None
+    run_id: str, problem_statement: str, config_path: str | None = None, inline_config: dict[str, Any] | None = None, github_token: str = ""
 ):
     """Run SWE-agent asynchronously and emit updates via Socket.IO."""
     state = RunState(run_id)
@@ -405,6 +405,7 @@ def create_run():
     problem_statement = data["problem_statement"]
     config_path = data.get("config_path", "./config/api_default.yaml")
     inline_config = data.get("config")
+    github_token = data.get("github_token", "")
 
     # Validate configuration if provided
     # if inline_config:
@@ -457,6 +458,44 @@ def get_models():
         return jsonify({"error": str(e), "available_models": []}), 500
 
 
+@app.route("/api/github/validate", methods=["POST"])
+def validate_github_token():
+    """Validate a GitHub token."""
+    try:
+        data = request.get_json()
+        if not data or "token" not in data:
+            return jsonify({"error": "GitHub token is required", "valid": False}), 400
+        
+        token = data["token"].strip()
+        if not token:
+            return jsonify({"error": "GitHub token cannot be empty", "valid": False}), 400
+        
+        # Validate the GitHub token by making a test API call
+        headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json"
+        }
+        
+        try:
+            response = requests.get("https://api.github.com/user", headers=headers, timeout=10)
+            if response.status_code == 200:
+                return jsonify({"valid": True, "message": "GitHub token is valid"}), 200
+            elif response.status_code == 401:
+                return jsonify({"error": "Invalid GitHub token: authentication failed", "valid": False}), 401
+            else:
+                return jsonify({"error": f"GitHub API error: {response.status_code}", "valid": False}), response.status_code
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error validating GitHub token: {e}")
+            if "Connection error" in str(e) or "timeout" in str(e):
+                return jsonify({"error": "Failed to connect to GitHub API. Please check your internet connection.", "valid": False}), 503
+            else:
+                return jsonify({"error": f"Error validating token: {str(e)}", "valid": False}), 500
+    
+    except Exception as e:
+        logger.error(f"Error in token validation endpoint: {e}")
+        return jsonify({"error": "Internal server error", "valid": False}), 500
+
+
 @app.route("/api/github/search", methods=["GET", "POST"])
 def search_github_repositories():
     """Search for GitHub repositories by name or query."""
@@ -477,8 +516,14 @@ def search_github_repositories():
         if not query:
             return jsonify({"error": "Search query 'q' is required", "repositories": []}), 400
 
+        # Get GitHub token from request if provided (for authenticated searches)
+        github_token = ""
+        json_data = request.get_json(silent=True)
+        if json_data and "github_token" in json_data:
+            github_token = json_data["github_token"]
+        
         # Use GitHub API to search for repositories
-        results = search_github_repos(query)
+        results = search_github_repos(query, github_token=github_token)
 
         return jsonify({"query": query, "repositories": results})
     except Exception as e:
@@ -496,8 +541,8 @@ def get_github_issues():
         if not repo:
             return jsonify({"error": "Repository parameter 'repo' is required (format: owner/repo)", "issues": []}), 400
 
-        # Check if we have a GitHub token in environment variables
-        github_token = os.getenv("GITHUB_TOKEN", "")
+        # Get GitHub token from query string or use environment variable
+        github_token = request.args.get("github_token", os.getenv("GITHUB_TOKEN", ""))
         headers = {}
         if github_token:
             headers["Authorization"] = f"token {github_token}"

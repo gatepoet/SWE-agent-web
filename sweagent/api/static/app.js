@@ -40,6 +40,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Model selection element
   const modelSelect = document.getElementById("modelName");
+  
+  // GitHub token elements
+  const githubTokenInput = document.getElementById("githubToken");
+  const validateTokenBtn = document.getElementById("validateTokenBtn");
+  const tokenValidationStatus = document.getElementById("tokenValidationStatus");
 
   let currentRunId = null;
 
@@ -134,6 +139,57 @@ document.addEventListener("DOMContentLoaded", function () {
     } else {
       fileNameDisplay.textContent = "No file chosen";
     }
+  });
+
+  // GitHub token validation function
+  async function validateGitHubToken() {
+    const token = githubTokenInput.value.trim();
+    
+    if (!token) {
+      showTokenValidationStatus("error", "Please enter a GitHub token");
+      return false;
+    }
+    
+    try {
+      const response = await fetch("/api/github/validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ token: token }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.valid) {
+        showTokenValidationStatus("success", "GitHub token is valid!");
+        return true;
+      } else {
+        showTokenValidationStatus("error", data.error || "Invalid GitHub token");
+        return false;
+      }
+    } catch (error) {
+      console.error("Error validating token:", error);
+      showTokenValidationStatus("error", "Failed to validate token: " + error.message);
+      return false;
+    }
+  }
+
+  // Show token validation status
+  function showTokenValidationStatus(type, message) {
+    tokenValidationStatus.textContent = message;
+    tokenValidationStatus.className = `validation-status ${type}`;
+    tokenValidationStatus.classList.remove("hidden");
+  }
+
+  // Clear token validation status
+  function clearTokenValidationStatus() {
+    tokenValidationStatus.classList.add("hidden");
+  }
+
+  // Add event listener for token validation button
+  validateTokenBtn.addEventListener("click", async function () {
+    await validateGitHubToken();
   });
 
   // Add step to timeline view
@@ -675,6 +731,13 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       const requestBody = { problem_statement: finalProblemStatement };
+      
+      // Include GitHub token if provided
+      const githubToken = githubTokenInput.value.trim();
+      if (githubToken) {
+        requestBody.github_token = githubToken;
+      }
+      
       if (Object.keys(config).length > 0) {
         requestBody.config = config;
       }
