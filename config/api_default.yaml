@@ -48,8 +48,8 @@ agent:
       - path: tools/registry
       - path: tools/edit_anthropic
       - path: tools/review_on_submit_m
-      - path: tools/image_tools  # lets models view image files
-      - path: tools/web_browser  # browser tool for interacting with web servers
+      # - path: tools/image_tools  # lets models view image files
+      # - path: tools/web_browser  # browser tool for interacting with web servers
     registry_variables:
       USE_FILEMAP: 'true'
       SUBMIT_REVIEW_MESSAGES:
@@ -84,18 +84,19 @@ agent:
     api_base: http://hal-8999:12345/v1
     per_instance_cost_limit: 0
     total_cost_limit: 0
-    # completion_kwargs:
+    completion_kwargs:
+      timeout: 600
     #   reasoning_effort: high
     #   allowed_openai_params:
     #     - reasoning_effort
     #   #parallel_tool_calls: True
-    per_instance_call_limit: 500
+    per_instance_call_limit: 0
     # max_input_tokens: 40960
     litellm_model_registry: "./models.json"
 
 env:
-  # post_startup_commands:
-  #   - pip install -e .
+  post_startup_commands:
+    - pip install -e .
   # repo:
     # base_commit: swe-agent-fix-#31-52662208
   deployment:
