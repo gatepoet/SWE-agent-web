@@ -7,11 +7,9 @@ import asyncio
 import json
 import logging
 import os
-import threading
-import time
 from pathlib import Path
+import threading
 from typing import Any
-from urllib.parse import urlencode
 
 import requests
 import yaml
@@ -20,9 +18,18 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 
 # Import SWE-agent components
-from sweagent.api.websocket_hook import WebSocketHook
+from sweagent.api.github_api import search_github_repos
+from sweagent.api.models import RunState
+from sweagent.api.run_manager import (
+    active_runs,
+    create_agent_config,
+    generate_run_id,
+    get_run_state,
+    remove_run_state,
+    run_agent_async,
+    runs_lock,
+)
 from sweagent.run.run_single import RunSingleConfig
-from sweagent.types import AgentRunResult
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,205 +39,10 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 
-# Global cache for GitHub search results to avoid duplicate API calls
-_github_search_cache = {}
-_github_search_cache_timestamp = {}
-
-
-def parse_github_query(query: str) -> str:
-    """
-    Parse user input query and convert it to optimal GitHub search format.
-    """
-    query = query.strip()
-
-    if not query:
-        return ""
-
-    # If query already contains GitHub search operators, use as-is
-    github_operators = ["in:", "user:", "org:", "repo:", "language:", "stars:", "forks:", "owner:"]
-    if any(op in query for op in github_operators):
-        return query
-
-    # Check if it looks like a full repository path (owner/repo)
-    if "/" in query:
-        parts = query.split("/")
-        if len(parts) == 2 and all(part.strip() for part in parts):
-            owner, repo = parts
-            # Search for repository belonging to owner
-            return f"{repo} in:name owner:{owner}"
-
-    # Default: search for the query in repository names
-    return f"{query} in:name OR {query} in:owner"
-
-
-def search_github_repos(query: str, max_results: int = 10, github_token: str = "") -> list[dict[str, Any]]:
-    """Search for GitHub repositories using the GitHub API with caching and improved query parsing."""
-    import requests
-
-    # Normalize query
-    normalized_query = parse_github_query(query)
-    if not normalized_query:
-        return []
-
-    # Check cache first (cache for 30 seconds to avoid duplicate API calls)
-    current_time = time.time()
-    cache_key = f"{normalized_query}:{max_results}"
-
-    if cache_key in _github_search_cache:
-        if current_time - _github_search_cache_timestamp.get(cache_key, 0) < 30:
-            logger.debug(f"Using cached results for query: {query}")
-            return _github_search_cache[cache_key].copy()
-
-    # Use provided token or fall back to environment variable
-    token = github_token if github_token else os.getenv("GITHUB_TOKEN", "")
-    headers = {}
-    if token:
-        headers["Authorization"] = f"token {token}"
-    headers["Accept"] = "application/vnd.github+json"
-    # Build search URL
-    search_url = (
-        f"https://api.github.com/search/repositories?q={normalized_query}&per_page={max_results}&sort=stars&order=desc"
-    )
-    print(search_url)
-    print(urlencode({"q": normalized_query}))
-    print(
-        f"https://api.github.com/search/repositories?q={urlencode({'q': normalized_query})}&per_page={max_results}&sort=stars&order=desc"
-    )
-    try:
-        response = requests.get(search_url, headers=headers, timeout=10)
-        response.raise_for_status()
-
-        data = response.json()
-        repositories = []
-
-        for repo in data.get("items", []):
-            repo_info = {
-                "full_name": repo.get("full_name", ""),
-                "name": repo.get("name", ""),
-                "owner": repo.get("owner", {}).get("login", ""),
-                "html_url": repo.get("html_url", ""),
-                "description": repo.get("description", ""),
-                "stargazers_count": repo.get("stargazers_count", 0),
-                "forks_count": repo.get("forks_count", 0),
-            }
-            repositories.append(repo_info)
-
-        # Cache the results
-        _github_search_cache[cache_key] = repositories.copy()
-        _github_search_cache_timestamp[cache_key] = current_time
-
-        return repositories
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"GitHub API request failed: {e}")
-        # Return empty results on error
-        return []
-
-
-# Global state for active runs
-active_runs: dict[str, Any] = {}
-runs_lock = threading.Lock()
-
-
-class RunState:
-    """Track the state of a running SWE-agent instance."""
-
-    def __init__(self, run_id: str):
-        self.run_id = run_id
-        self.started = False
-        self.completed = False
-        self.error = None
-        self.trajectory_steps: list[dict[str, Any]] = []
-        self.config = None
-        self.problem_statement = ""
-        self.exit_status = None
-        self.model_stats = {}
-        self.websocket_hook: WebSocketHook | None = None
-
-    def to_dict(self):
-        # Get current step info if available
-        current_action = ""
-        current_observation = ""
-        current_thought = ""
-
-        if (
-            self.websocket_hook
-            and hasattr(self.websocket_hook, "trajectory_steps")
-            and self.websocket_hook.trajectory_steps
-        ):
-            last_step = self.websocket_hook.trajectory_steps[-1]
-            current_action = last_step.get("action", "")
-            current_observation = (
-                last_step.get("observation", "")[:200] + "..."
-                if last_step.get("observation") and len(last_step.get("observation")) > 200
-                else last_step.get("observation", "")
-            )
-            current_thought = (
-                last_step.get("thought", "")[:150] + "..."
-                if last_step.get("thought") and len(last_step.get("thought")) > 150
-                else last_step.get("thought", "")
-            )
-
-        return {
-            "run_id": self.run_id,
-            "started": self.started,
-            "completed": self.completed,
-            "error": self.error,
-            "steps": len(self.trajectory_steps),
-            "exit_status": self.exit_status,
-            "model_stats": self.model_stats,
-            "problem_statement": (
-                self.problem_statement[:100] + "..."
-                if self.problem_statement and len(self.problem_statement) > 100
-                else self.problem_statement
-            )
-            or "",
-            "current_action": current_action,
-            "current_observation": current_observation,
-            "current_thought": current_thought,
-        }
-
-
-def get_run_state(run_id: str) -> RunState | None:
-    """Get run state by ID."""
-    with runs_lock:
-        return active_runs.get(run_id)
-
-
-def set_run_state(run_id: str, state: RunState):
-    """Set run state by ID."""
-    with runs_lock:
-        active_runs[run_id] = state
-
-
-def remove_run_state(run_id: str):
-    """Remove run state by ID."""
-    with runs_lock:
-        if run_id in active_runs:
-            del active_runs[run_id]
-
-
-def generate_run_id() -> str:
-    """Generate a unique run ID."""
-    return f"run_{int(time.time() * 1000)}"
-
-
-def _run_single_with_result(config: RunSingleConfig, websocket_hook: WebSocketHook | None = None) -> AgentRunResult:
-    """Wrapper around run_from_config that returns the result."""
-    from sweagent.run.run_single import RunSingle
-
-    # Create RunSingle instance from config
-    run_single_instance = RunSingle.from_config(config)
-
-    # Add WebSocket hook if provided
-    if websocket_hook:
-        run_single_instance.agent.add_hook(websocket_hook)
-
-    # Run and return the result
-    run_single_instance.run()
-
-    data = run_single_instance.agent.get_trajectory_data()
-    return AgentRunResult(info=data["info"], trajectory=data["trajectory"])
+def emit_update(run_id: str, event: str, data: Any):
+    """Emit an update to all connected clients for a run."""
+    socketio.emit(f"run_{run_id}_{event}", data)
+    socketio.emit("update", {"run_id": run_id, **data})
 
 
 @app.route("/api/runs", methods=["GET"])
@@ -275,125 +87,6 @@ def get_trajectory(run_id: str):
     return jsonify(result)
 
 
-def emit_update(run_id: str, event: str, data: Any):
-    """Emit an update to all connected clients for a run."""
-    socketio.emit(f"run_{run_id}_{event}", data)
-    socketio.emit("update", {"run_id": run_id, **data})
-
-
-def deep_merge(dict1: dict[str, Any], dict2: dict[str, Any]) -> dict[str, Any]:
-    """Deep merge two dictionaries. Values from dict2 take precedence."""
-    result = dict1.copy()
-    for key, value in dict2.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            # Recursively merge nested dictionaries
-            result[key] = deep_merge(result[key], value)
-        else:
-            # Override with value from dict2
-            result[key] = value
-    return result
-
-
-def create_agent_config(
-    problem_statement: str, config_path: str | None = None, inline_config: dict[str, Any] | None = None
-) -> RunSingleConfig:
-    """Create a configuration for the SWE-agent."""
-    # Load default config
-    config_dict = {"problem_statement": {}}
-
-    # Handle different problem statement formats
-    if isinstance(problem_statement, dict):
-        # Problem statement is already a structured config (e.g., GitHub issue)
-        config_dict["problem_statement"] = problem_statement
-    elif isinstance(problem_statement, str):
-        # Simple text problem statement
-        config_dict["problem_statement"]["text"] = problem_statement
-
-    # Determine which config file to use
-    if not config_path:
-        config_path = "./config/api_default.yaml"
-
-    # Load from file and merge
-    with open(config_path) as f:
-        file_config = yaml.safe_load(f)
-
-    # Merge configurations (file config takes precedence over our minimal config)
-    config_dict = deep_merge(config_dict, file_config)
-
-    # Apply inline configuration overrides if provided
-    if inline_config:
-        config_dict = deep_merge(config_dict, inline_config)
-
-    return RunSingleConfig.model_validate(config_dict)
-
-
-async def run_agent_async(
-    run_id: str, problem_statement: str, config_path: str | None = None, inline_config: dict[str, Any] | None = None, github_token: str = ""
-):
-    """Run SWE-agent asynchronously and emit updates via Socket.IO."""
-    state = RunState(run_id)
-    state.problem_statement = problem_statement
-    set_run_state(run_id, state)
-
-    try:
-        # Emit start event
-        emit_update(run_id, "start", {"run_id": run_id, "status": "started"})
-
-        # Create config
-        config = create_agent_config(problem_statement, config_path, inline_config)
-        state.config = config
-
-        # Create WebSocket hook and attach it to the state
-        websocket_hook = WebSocketHook(run_id)
-        websocket_hook._emit_function = emit_update
-        state.websocket_hook = websocket_hook
-
-        # Run the agent with the WebSocket hook in a separate thread
-        result = await asyncio.to_thread(
-            _run_single_with_result,
-            config,
-            websocket_hook,
-        )
-
-        # Update state with results from the hook if available
-        if state.websocket_hook and state.websocket_hook.trajectory_steps:
-            state.trajectory_steps = state.websocket_hook.trajectory_steps
-        else:
-            state.trajectory_steps = result.trajectory
-
-        state.exit_status = result.info.get("exit_status")
-        state.model_stats = result.info.get("model_stats", {})
-
-        # Emit completion event
-        emit_update(
-            run_id,
-            "complete",
-            {
-                "run_id": run_id,
-                "status": "completed",
-                "exit_status": state.exit_status,
-                "steps": len(state.trajectory_steps),
-                "model_stats": state.model_stats,
-            },
-        )
-
-    except Exception as e:
-        logger.error(f"Error in run {run_id}: {e}")
-        state.error = str(e)
-        emit_update(
-            run_id,
-            "error",
-            {
-                "run_id": run_id,
-                "status": "error",
-                "error": str(e),
-            },
-        )
-
-    # Mark as completed but keep the state for retrieval
-    state.completed = True
-
-
 @app.route("/api/runs", methods=["POST"])
 def create_run():
     """Create a new SWE-agent run."""
@@ -426,7 +119,9 @@ def create_run():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(run_agent_async(run_id, problem_statement, config_path, inline_config))
+            loop.run_until_complete(
+                run_agent_async(run_id, problem_statement, config_path, inline_config, github_token, emit_update)
+            )
         finally:
             loop.close()
 
@@ -590,6 +285,7 @@ def get_github_issues():
 @app.route("/api/status", methods=["GET"])
 def get_status():
     """Get server status."""
+    import time
     return jsonify(
         {
             "status": "running",
@@ -658,6 +354,9 @@ def get_parser() -> argparse.ArgumentParser:
 
 async def main(args: list[str] | None = None):
     """Main entry point for the API server."""
+    import threading
+    import time
+    
     parser = get_parser()
     args_parsed = parser.parse_args(args)
 
@@ -679,5 +378,10 @@ async def main(args: list[str] | None = None):
         logger.info("Shutting down server...")
 
 
+def run_from_cli(args: list[str] | None = None):
+    """Run the API server from command line arguments."""
+    asyncio.run(main(args))
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    run_from_cli()
