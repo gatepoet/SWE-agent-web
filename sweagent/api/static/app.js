@@ -2,9 +2,36 @@
 document.addEventListener("DOMContentLoaded", function () {
   const socket = io();
 
-  // DOM elements
-  const problemStatementInput = document.getElementById("problemStatement");
-  const startRunButton = document.getElementById("startRun");
+  // DOM elements for workflow steps
+  const githubTokenSection = document.getElementById("githubTokenSection");
+  const repositorySelectionSection = document.getElementById("repositorySelectionSection");
+  const issueSelectionSection = document.getElementById("issueSelectionSection");
+  const configurationSection = document.getElementById("configurationSection");
+
+  // Navigation buttons
+  const prevStepBtn = document.getElementById("prevStepBtn");
+  const nextStepBtn = document.getElementById("nextStepBtn");
+  const startRunBtn = document.getElementById("startRunBtn");
+
+  // Form elements
+  const githubTokenInput = document.getElementById("githubToken");
+  const validateTokenBtn = document.getElementById("validateTokenBtn");
+  const tokenValidationStatus = document.getElementById("tokenValidationStatus");
+  
+  const githubRepoUrlInput = document.getElementById("github-repo-input");
+  const branchSelectionGroup = document.getElementById("branchSelectionGroup");
+  const githubBranchSelect = document.getElementById("githubBranch");
+  const selectedRepoInfo = document.getElementById("selectedRepoInfo");
+  const repoDisplayName = document.getElementById("repoDisplayName");
+  const branchDisplayName = document.getElementById("branchDisplayName");
+
+  const githubIssueInput = document.getElementById("githubIssueInput");
+  const manualIssueText = document.getElementById("manualIssueText");
+
+  // Configuration elements
+  const modelSelect = document.getElementById("modelName");
+
+  // Other UI elements
   const activeRunsContainer = document.getElementById("activeRuns");
   const chatMessagesContainer = document.getElementById("chatMessages");
   const timelineViewContainer = document.getElementById("timelineView");
@@ -13,133 +40,215 @@ document.addEventListener("DOMContentLoaded", function () {
   const exitStatusElement = document.getElementById("exitStatus");
   const stepCountElement = document.getElementById("stepCount");
 
-  // Problem statement type radio buttons
-  const textProblemTypeRadio = document.getElementById("textProblemType");
-  const githubProblemTypeRadio = document.getElementById("githubProblemType");
-  const inputHint = document.getElementById("inputHint");
-  const githubHint = document.getElementById("githubHint");
-
   // Cost display elements
   const costDisplayContainer = document.getElementById("costDisplay");
   const costStatsContainer = document.getElementById("costStats");
 
-  // Repository configuration elements
-  const repoTypeSelect = document.getElementById("repoType");
-  const repoPathGroup = document.getElementById("repoPathGroup");
-  const githubRepoGroup = document.getElementById("github-repo-group");
-  const repoPathInput = document.getElementById("repoPath");
-  const githubRepoUrlInput = document.getElementById("github-repo-input");
-
-  // GitHub issues selection elements
-  const githubIssuesSection = document.getElementById("githubIssuesSection");
-  const githubIssueInput = document.getElementById("githubIssueInput");
-
-  // Config file upload elements
-  const configFileInput = document.getElementById("configFile");
-  const fileNameDisplay = document.getElementById("fileName");
-
-  // Model selection element
-  const modelSelect = document.getElementById("modelName");
+  let currentStep = 1;
+  let selectedRepository = null;
+  let selectedBranch = null;
+  let selectedIssueUrl = null;
   
-  // GitHub token elements
-  const githubTokenInput = document.getElementById("githubToken");
-  const validateTokenBtn = document.getElementById("validateTokenBtn");
-  const tokenValidationStatus = document.getElementById("tokenValidationStatus");
+  // Workflow steps
+  const STEP_TOKEN = 1;
+  const STEP_REPO = 2;
+  const STEP_ISSUE = 3;
+  const STEP_CONFIG = 4;
 
-  let currentRunId = null;
+  // Initialize workflow
+  function initWorkflow() {
+    updateStepDisplay();
+    setupEventListeners();
+    fetchModels();
+  }
 
-  // Handle repository type selection
-  repoTypeSelect.addEventListener("change", function () {
-    const repoType = this.value;
-    if (repoType === "local") {
-      repoPathGroup.style.display = "block";
-      githubRepoGroup.style.display = "none";
-    } else if (repoType === "github") {
-      repoPathGroup.style.display = "none";
-      githubRepoGroup.style.display = "block";
-    } else {
-      repoPathGroup.style.display = "none";
-      githubRepoGroup.style.display = "none";
+  // Update which step is visible
+  function updateStepDisplay() {
+    // Hide all steps
+    githubTokenSection.classList.add("hidden");
+    repositorySelectionSection.classList.add("hidden");
+    issueSelectionSection.classList.add("hidden");
+    configurationSection.classList.add("hidden");
+
+    // Show current step
+    switch (currentStep) {
+      case STEP_TOKEN:
+        githubTokenSection.classList.remove("hidden");
+        break;
+      case STEP_REPO:
+        repositorySelectionSection.classList.remove("hidden");
+        break;
+      case STEP_ISSUE:
+        issueSelectionSection.classList.remove("hidden");
+        // Show GitHub issues section if we have a repo
+        if (selectedRepository) {
+          document.getElementById("githubIssuesSection").classList.remove("hidden");
+        }
+        break;
+      case STEP_CONFIG:
+        configurationSection.classList.remove("hidden");
+        break;
     }
 
-    // Update GitHub issues section visibility based on new selection
-    updateGitHubIssuesSectionVisibility();
-  });
+    // Update navigation buttons
+    prevStepBtn.classList.toggle("hidden", currentStep === 1);
+    nextStepBtn.classList.toggle("hidden", currentStep === 4);
+    startRunBtn.classList.toggle("hidden", currentStep !== 4);
+  }
 
-  // GitHub repository autocomplete functionality
-  // Now using the GitHub auto-complete-element component
-  // No custom implementation needed
+  // Setup event listeners for workflow navigation
+  function setupEventListeners() {
+    prevStepBtn.addEventListener("click", goToPreviousStep);
+    nextStepBtn.addEventListener("click", goToNextStep);
+    startRunBtn.addEventListener("click", startAgentRun);
+    
+    // GitHub token validation
+    validateTokenBtn.addEventListener("click", async function() {
+      const isValid = await validateGitHubToken();
+      if (isValid) {
+        // Auto-advance to next step after successful validation
+        setTimeout(goToNextStep, 500);
+      }
+    });
 
-  // Handle problem statement type selection
-  textProblemTypeRadio.addEventListener("change", function () {
-    if (this.checked) {
-      inputHint.classList.remove("hidden");
-      githubHint.classList.add("hidden");
-      problemStatementInput.placeholder =
-        "Enter your problem statement here...";
+    // Repository selection - use the auto-complete element's events
+    githubRepoUrlInput.addEventListener("change", function() {
+      if (this.value) {
+        selectedRepository = this.value;
+        updateSelectedRepoDisplay();
+        
+        // Fetch branches for this repository
+        fetchGitHubBranches(this.value);
+      }
+    });
+    const completer = document.getElementById("github-repo-auto-complete");
+    const container = completer.parentElement;
+    completer.addEventListener("loadstart", () =>
+      container.classList.add("is-loading"),
+    );
+    completer.addEventListener("loadend", () =>
+      container.classList.remove("is-loading"),
+    );
+    completer.addEventListener("load", () =>
+      container.classList.add("is-success"),
+    );
+    completer.addEventListener("error", () =>
+      container.classList.add("is-error"),
+    );
+    completer.fetchResult = async (url) => {
+      response = await fetch(url);
+      json = await response.json();
 
-      // Hide GitHub issues section when switching to text
-      githubIssuesSection.classList.add("hidden");
+      // Enhanced HTML with professional GitHub-like styling
+      html = json.repositories
+        .map(
+          (r) => `
+              <li role="option" data-autocomplete-value="${r.full_name}" class="autocomplete-item">
+                  <span class="autocomplete-repo-icon">🐙</span>
+                  <div class="autocomplete-repo-info">
+                      <div class="autocomplete-repo-name">${r.full_name}</div>
+                      ${r.description ? `<div class="autocomplete-repo-description">${r.description}</div>` : ""}
+                      <div class="autocomplete-repo-stats">
+                          <span class="autocomplete-repo-stat autocomplete-star-icon">⭐ ${r.stargazers_count || 0}</span>
+                          <span class="autocomplete-repo-stat autocomplete-fork-icon">🍴 ${r.forks_count || 0}</span>
+                      </div>
+                  </div>
+              </li>
+          `,
+        )
+        .join("");
+
+      return html;
+    };
+
+    // Branch selection
+    githubBranchSelect.addEventListener("change", function() {
+      if (this.value) {
+        selectedBranch = this.value;
+        updateSelectedRepoDisplay();
+      }
+    });
+
+    // Issue input - either from dropdown or manual entry
+    let issueDebounceTimer;
+    githubIssueInput.addEventListener("input", function() {
+      clearTimeout(issueDebounceTimer);
+      issueDebounceTimer = setTimeout(() => {
+        fetchGitHubIssues();
+      }, 300);
+    });
+
+    // Handle issue selection from dropdown
+    githubIssueInput.addEventListener("change", function() {
+      if (this.value) {
+        selectedIssueUrl = this.value;
+        manualIssueText.value = this.value; // Sync with manual field
+      }
+    });
+  }
+
+  // Go to previous step in workflow
+  function goToPreviousStep() {
+    if (currentStep > 1) {
+      currentStep--;
+      updateStepDisplay();
     }
-  });
+  }
 
-  githubProblemTypeRadio.addEventListener("change", function () {
-    if (this.checked) {
-      inputHint.classList.add("hidden");
-      githubHint.classList.remove("hidden");
-      problemStatementInput.placeholder =
-        "Enter GitHub issue URL: https://github.com/owner/repo/issues/123";
-
-      // Show GitHub issues section if a GitHub repo is selected
-      updateGitHubIssuesSectionVisibility();
+  // Go to next step in workflow
+  function goToNextStep() {
+    let canAdvance = true;
+    
+    // Validate current step before advancing
+    switch (currentStep) {
+      case STEP_TOKEN:
+        if (!githubTokenInput.value.trim()) {
+          alert("Please enter a GitHub token");
+          canAdvance = false;
+        }
+        break;
+      case STEP_REPO:
+        if (!selectedRepository) {
+          alert("Please select a repository");
+          canAdvance = false;
+        }
+        break;
+      case STEP_ISSUE:
+        // Issue text is required
+        const issueText = manualIssueText.value.trim();
+        if (!issueText && !selectedIssueUrl) {
+          alert("Please enter an issue description or select an issue from the list");
+          canAdvance = false;
+        }
+        break;
     }
-  });
 
-  // Add event listeners for GitHub repository autocomplete
-  // GitHub repository URL input is now handled by the auto-complete element
-  // No custom event listeners needed
-
-  // Handle GitHub issue input changes - fetch issues from API
-  let githubIssueDebounceTimer;
-  githubIssueInput.addEventListener("input", function () {
-    clearTimeout(githubIssueDebounceTimer);
-    githubIssueDebounceTimer = setTimeout(() => {
-      fetchGitHubIssues();
-    }, 300);
-  });
-
-  // Handle GitHub issue selection from dropdown
-  githubIssueInput.addEventListener("change", function () {
-    if (this.value) {
-      problemStatementInput.value = this.value;
+    if (canAdvance) {
+      currentStep++;
+      updateStepDisplay();
+      
+      // When moving to issue selection, fetch issues for the repo
+      if (currentStep === STEP_ISSUE && selectedRepository) {
+        fetchGitHubIssues();
+      }
     }
-  });
+  }
 
-  // Update the data-repo-url attribute when GitHub repo input changes
-  let githubRepoDebounceTimer;
-  githubRepoUrlInput.addEventListener("input", function () {
-    clearTimeout(githubRepoDebounceTimer);
-    githubRepoDebounceTimer = setTimeout(() => {
-      updateGitHubIssueSource();
-    }, 500);
-  });
-
-  // Handle config file upload
-  configFileInput.addEventListener("change", function (e) {
-    if (e.target.files.length > 0) {
-      const file = e.target.files[0];
-      fileNameDisplay.textContent = file.name;
-
-      // Validate file type
-      if (!file.name.endsWith(".yaml") && !file.name.endsWith(".yml")) {
-        alert("Please upload a YAML file (.yaml or .yml)");
-        configFileInput.value = ""; // Clear the input
-        fileNameDisplay.textContent = "No file chosen";
+  // Update display of selected repository and branch
+  function updateSelectedRepoDisplay() {
+    if (selectedRepository) {
+      selectedRepoInfo.classList.remove("hidden");
+      repoDisplayName.textContent = `Repository: ${selectedRepository}`;
+      
+      if (selectedBranch) {
+        branchDisplayName.textContent = `Branch: ${selectedBranch}`;
+      } else {
+        branchDisplayName.textContent = "Branch: main (default)";
       }
     } else {
-      fileNameDisplay.textContent = "No file chosen";
+      selectedRepoInfo.classList.add("hidden");
     }
-  });
+  }
 
   // GitHub token validation function
   async function validateGitHubToken() {
@@ -182,117 +291,259 @@ document.addEventListener("DOMContentLoaded", function () {
     tokenValidationStatus.classList.remove("hidden");
   }
 
-  // Clear token validation status
-  function clearTokenValidationStatus() {
-    tokenValidationStatus.classList.add("hidden");
+  // Fetch available branches for a GitHub repository
+  async function fetchGitHubBranches(repoUrl) {
+    const token = githubTokenInput.value.trim();
+    
+    if (!repoUrl || !token) return;
+    
+    try {
+      // Extract owner/repo from URL
+      let repoName = repoUrl;
+      if (repoUrl.startsWith("https://github.com/")) {
+        const parts = repoUrl.split("/");
+        if (parts.length >= 5) {
+          repoName = `${parts[3]}/${parts[4]}`;
+        }
+      }
+
+      const response = await fetch(`/api/github/branches?repo=${encodeURIComponent(repoName)}&github_token=${token}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Clear existing options except default
+        while (githubBranchSelect.options.length > 1) {
+          githubBranchSelect.remove(1);
+        }
+
+        // Add branch options
+        (data.branches || []).forEach(branch => {
+          const option = document.createElement("option");
+          option.value = branch;
+          option.textContent = branch;
+          githubBranchSelect.appendChild(option);
+        });
+
+        // Show branch selection
+        branchSelectionGroup.style.display = "block";
+      }
+    } catch (error) {
+      console.error("Error fetching branches:", error);
+    }
   }
 
-  // Add event listener for token validation button
-  validateTokenBtn.addEventListener("click", async function () {
-    await validateGitHubToken();
-  });
-
-  // Add step to timeline view
-  function addStepToTimeline(stepNum, stepData) {
-    const stepCard = document.createElement("div");
-    stepCard.className = "step-card";
-
-    let thoughtContent = "";
-    let actionContent = "";
-    let observationContent = "";
-    let responseContent = "";
-
-    if (stepData.thought) {
-      thoughtContent = formatComponent("Thought", stepData.thought, "thought");
+  // Fetch GitHub issues from API based on current repository and search query
+  async function fetchGitHubIssues() {
+    const repoUrl = githubIssueInput.dataset.repoUrl || selectedRepository;
+    
+    if (!repoUrl) {
+      document.getElementById("github-issue-results").innerHTML = "";
+      return;
     }
 
-    if (stepData.action) {
-      // Check if action is a bash command
-      const bashRegex = /^bash: (.+)$/i;
-      if (bashRegex.test(stepData.action)) {
-        const bashCommand = stepData.action.replace(bashRegex, "$1");
-        actionContent = formatComponent(
-          "Action",
-          `<pre>${escapeHtml(bashCommand)}</pre>`,
-          "action",
-        );
-      } else {
-        actionContent = formatComponent(
-          "Action",
-          escapeHtml(stepData.action),
-          "action",
-        );
-      }
-    }
-
-    if (stepData.observation) {
-      observationContent = formatComponent(
-        "Observation",
-        escapeHtml(stepData.observation),
-        "observation",
+    try {
+      const response = await fetch(
+        `/api/github/issues?repo=${encodeURIComponent(repoUrl)}`,
       );
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      displayGitHubIssues(data.issues || []);
+    } catch (error) {
+      console.error("Error fetching GitHub issues:", error);
+      // Clear results on error
+      document.getElementById("github-issue-results").innerHTML = "";
+    }
+  }
+
+  // Display GitHub issues in the dropdown
+  function displayGitHubIssues(issues) {
+    const resultsContainer = document.getElementById("github-issue-results");
+    if (!resultsContainer) return;
+
+    if (issues.length === 0) {
+      resultsContainer.innerHTML =
+        '<li class="no-results">No open issues found</li>';
+      return;
     }
 
-    if (stepData.response && stepData.response.trim() !== "") {
-      // Check if response looks like code
-      const lines = stepData.response.split("\n");
-      if (
-        lines.length > 1 ||
-        stepData.response.includes("\t") ||
-        stepData.response.match(/^[a-zA-Z0-9_]+:/)
-      ) {
-        responseContent = formatComponent(
-          "Response",
-          `<pre>${escapeHtml(stepData.response)}</pre>`,
-          "response",
-        );
-      } else {
-        responseContent = formatComponent(
-          "Response",
-          escapeHtml(stepData.response),
-          "response",
-        );
+    const html = issues
+      .map(
+        (issue) => `
+            <li class="github-issue-result" data-url="${issue.url}">
+                <div class="github-issue-number">#${issue.number}</div>
+                <div class="github-issue-title">${escapeHtml(issue.title)}</div>
+                ${issue.body ? `<div class="github-issue-body">${truncateText(escapeHtml(issue.body), 100)}</div>` : ""}
+            </li>
+        `,
+      )
+      .join("");
+
+    resultsContainer.innerHTML = html;
+
+    // Add click handlers to issue items
+    const issueItems = resultsContainer.querySelectorAll(".github-issue-result");
+    issueItems.forEach(item => {
+      item.addEventListener("click", function() {
+        selectedIssueUrl = this.dataset.url;
+        manualIssueText.value = this.dataset.url;
+        githubIssueInput.value = issue.title || "";
+      });
+    });
+  }
+
+  // Start agent run with collected configuration
+  async function startAgentRun() {
+    const problemStatement = manualIssueText.value.trim();
+    
+    if (!problemStatement && !selectedIssueUrl) {
+      alert("Please enter an issue description");
+      return;
+    }
+
+    // Build the final problem statement
+    let finalProblemStatement = problemStatement;
+    
+    if (selectedIssueUrl) {
+      // Use GitHub issue URL format
+      finalProblemStatement = {
+        type: "github",
+        github_url: selectedIssueUrl,
+      };
+    }
+
+    // Build configuration from UI inputs
+    const config = {};
+
+    // Handle repository configuration if a GitHub repo was selected
+    if (selectedRepository) {
+      if (!config.env) config.env = {};
+      if (!config.env.repo) config.env.repo = {};
+      config.env.repo.type = "github";
+      config.env.repo.github_url = selectedRepository;
+      
+      // Add branch if specified
+      if (selectedBranch) {
+        config.env.repo.branch = selectedBranch;
       }
     }
 
-    stepCard.innerHTML = `
-            <div class="step-header">
-                <span class="step-number">Step ${stepNum}</span>
-                <span class="step-icon">▼</span>
-            </div>
-            <div class="step-content">
-                <div class="step-details">
-                    ${thoughtContent}
-                    ${actionContent}
-                    ${observationContent}
-                    ${responseContent}
-                </div>
-            </div>`;
+    // Handle agent configuration
+    const modelTemperature = document.getElementById("modelTemperature").value;
+    const modelName = document.getElementById("modelName").value;
+    const costLimit = document.getElementById("costLimit").value;
+    const enableBash = document.getElementById("enableBash").value;
 
-    // Add click handler for accordion
-    stepCard.addEventListener("click", function (e) {
-      // Don't toggle if clicking on a copy button or link
-      if (e.target.tagName === "BUTTON" || e.target.tagName === "A") {
+    if (modelTemperature || modelName || costLimit || enableBash) {
+      config.agent = {};
+
+      if (modelTemperature || modelName || costLimit) {
+        config.agent.model = {};
+
+        if (modelTemperature) {
+          config.agent.model.temperature = parseFloat(modelTemperature);
+        }
+
+        if (modelName) {
+          config.agent.model.name = modelName;
+        }
+
+        if (costLimit) {
+          config.agent.model.per_instance_cost_limit = parseFloat(costLimit);
+        }
+      }
+
+      if (enableBash !== "") {
+        if (!config.agent.tools) config.agent.tools = {};
+        config.agent.tools.enable_bash_tool = enableBash === "true";
+      }
+    }
+
+    try {
+      // Create the run via API
+      const response = await fetch("/api/runs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          problem_statement: finalProblemStatement,
+          config: config,
+          github_token: githubTokenInput.value.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert("Failed to start run: " + (errorData.error || "Unknown error"));
         return;
       }
 
-      stepCard.classList.toggle("active");
-    });
+      const data = await response.json();
+      const runId = data.run_id;
 
-    timelineViewContainer.appendChild(stepCard);
+      // Store current run ID for tracking
+      window.currentRunId = runId;
+
+      console.log("Started run:", runId);
+      
+      // You could navigate to a run monitoring view here
+      // For now, just show success message
+      alert(`Run started successfully! Run ID: ${runId}`);
+    } catch (error) {
+      console.error("Error starting agent:", error);
+      alert("Failed to start agent: " + error.message);
+    }
   }
 
-  // Format a component (thought, action, observation, response) with proper styling
-  function formatComponent(label, content, type) {
-    const className = `${type}-section component-section`;
-    return `<div class="${className}"><span class="component-label">${label}</span><div class="component-content">${content}</div></div>`;
+  // Fetch available models from API and populate dropdown
+  async function fetchModels() {
+    try {
+      const response = await fetch("/api/models");
+      if (!response.ok) throw new Error("Failed to load models");
+
+      const data = await response.json();
+
+      if (data.model_names && data.model_names.length > 0) {
+        // Clear existing options except the default one
+        while (modelSelect.options.length > 1) {
+          modelSelect.remove(1);
+        }
+
+        // Add model options
+        data.model_names.forEach((modelName) => {
+          const option = document.createElement("option");
+          option.value = modelName;
+          option.textContent = modelName;
+          modelSelect.appendChild(option);
+        });
+      }
+    } catch (error) {
+      console.error("Error loading models:", error);
+    }
   }
 
-  // Update cost display with model stats
+  // Encode HTML for use in onclick handlers and attributes
+  function encodeHTML(str) {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // Update cost display sidebar with model statistics
   function updateCostDisplay(stats) {
     let html = "";
 
-    // Format stat key for display
     const formatStatKey = (key) => {
       const mappings = {
         total_tokens: "Total Tokens",
@@ -320,74 +571,15 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Display cost separately with emphasis
-    if (stats.cost_usd !== undefined) {
-      const costValue =
-        typeof stats.cost_usd === "number"
-          ? stats.cost_usd.toFixed(2)
-          : stats.cost_usd;
-      html += `<div class="cost-stat cost-total"><span class="cost-label">Total Cost:</span><span class="cost-value">$${costValue}</span></div>`;
+    if (stats.cost_usd) {
+      const cost = typeof stats.cost_usd === "number" ? stats.cost_usd.toFixed(2) : stats.cost_usd;
+      html += `<div class="cost-total">Total Cost: $${cost}</div>`;
     }
 
     costStatsContainer.innerHTML = html;
   }
 
-  // Add message to chat
-  function addChatMessage(role, content) {
-    const messageDiv = document.createElement("div");
-    messageDiv.className = `chat-message message-${role}`;
-
-    // Check if content contains code (bash commands or file content)
-    let formattedContent = content;
-
-    // Detect bash commands
-    const bashRegex = /^bash: (.+)$/i;
-    const bashMatch = content.match(bashRegex);
-
-    if (bashMatch) {
-      // Format as code block with copy button
-      formattedContent = `
-                <div class="message-content">
-                    <div class="code-header">
-                        <span class="code-language">Bash</span>
-                        <button class="copy-button" onclick="copyToClipboard('${encodeHTML(bashMatch[1])}')">Copy</button>
-                    </div>
-                    <pre class="code-block"><code>${escapeHtml(bashMatch[1])}</code></pre>
-                </div>`;
-    } else if (content.includes("\n")) {
-      // Multi-line content - format as preformatted
-      formattedContent = `
-                <div class="message-content">
-                    <pre>${escapeHtml(content)}</pre>
-                </div>`;
-    }
-
-    messageDiv.innerHTML = `<strong>${role}:</strong> ${formattedContent}`;
-    chatMessagesContainer.appendChild(messageDiv);
-    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
-  }
-
-  // Add collapsible code block
-  function addCodeBlock(role, language, content) {
-    const messageDiv = document.createElement("div");
-    messageDiv.className = `chat-message message-${role}`;
-
-    messageDiv.innerHTML = `
-            <strong>${role}:</strong>
-            <div class="message-content">
-                <details class="code-details">
-                    <summary class="code-summary">
-                        <span class="code-language">${language}</span>
-                        <button class="copy-button" onclick="copyToClipboard('${encodeHTML(content)}')">Copy</button>
-                    </summary>
-                    <pre class="code-block"><code>${escapeHtml(content)}</code></pre>
-                </details>
-            </div>`;
-
-    chatMessagesContainer.appendChild(messageDiv);
-    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
-  }
-
-  // Add model stats display
+  // Add model statistics as a chat message
   function addModelStats(stats) {
     const messageDiv = document.createElement("div");
     messageDiv.className = "chat-message message-system model-stats";
@@ -406,7 +598,7 @@ document.addEventListener("DOMContentLoaded", function () {
     chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
   }
 
-  // Format stat key for display
+  // Format stat key for display (used by updateCostDisplay and addModelStats)
   function formatStatKey(key) {
     const mappings = {
       total_tokens: "Total Tokens",
@@ -431,51 +623,123 @@ document.addEventListener("DOMContentLoaded", function () {
     return div.innerHTML;
   }
 
-  // Encode HTML for use in onclick handlers
-  function encodeHTML(str) {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+  function truncateText(text, maxLength) {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + "...";
   }
 
-  // Copy to clipboard utility
-  window.copyToClipboard = function (text) {
-    navigator.clipboard.writeText(text).then(function () {
-      alert("Copied to clipboard!");
-    });
-  };
+  // Format a component for the timeline view
+  function formatComponent(label, content, type) {
+    let contentClass = "component-content";
+    if (type === "thought") contentClass += " thought-content";
+    else if (type === "action") contentClass += " action-content";
+    else if (type === "observation") contentClass += " observation-content";
 
-  // Fetch available models from API and populate dropdown
-  async function fetchModels() {
-    try {
-      const response = await fetch("/api/models");
-      if (!response.ok) throw new Error("Failed to load models");
+    return `
+            <div class="${contentClass}">
+                <strong>${label}:</strong> ${content}
+            </div>
+        `;
+  }
 
-      const data = await response.json();
+  // Add a step to the timeline view
+  function addStepToTimeline(stepNum, stepData) {
+    const stepCard = document.createElement("div");
+    stepCard.className = "step-card";
 
-      if (data.model_names && data.model_names.length > 0) {
-        // Clear existing options except the default one
-        while (modelSelect.options.length > 1) {
-          modelSelect.remove(1);
-        }
+    let thoughtContent = "";
+    let actionContent = "";
+    let observationContent = "";
+    let responseContent = "";
 
-        // Add model options
-        data.model_names.forEach((modelName) => {
-          const option = document.createElement("option");
-          option.value = modelName;
-          option.textContent = modelName;
-          modelSelect.appendChild(option);
-        });
+    if (stepData.thought) {
+      thoughtContent = formatComponent("Thought", stepData.thought, "thought");
+    }
+
+    if (stepData.action) {
+      // Check if action is a bash command
+      const bashRegex = /^bash: (.+)$/i;
+      if (bashRegex.test(stepData.action)) {
+        const bashCommand = stepData.action.replace(bashRegex, "$1");
+        actionContent = formatComponent(
+          "Action",
+          `<pre>${escapeHtml(bashCommand)}</pre>`,
+          "action"
+        );
+      } else {
+        actionContent = formatComponent("Action", stepData.action, "action");
       }
-    } catch (error) {
-      console.error("Error loading models:", error);
-      // Show a message to the user or keep the dropdown empty
+    }
+
+    if (stepData.observation) {
+      observationContent = formatComponent("Observation", stepData.observation, "observation");
+    }
+
+    if (stepData.response) {
+      responseContent = formatComponent("Response", stepData.response, "response");
+    }
+
+    stepCard.innerHTML = `
+            <div class="step-header">Step ${stepNum}</div>
+            ${thoughtContent}
+            ${actionContent}
+            ${observationContent}
+            ${responseContent}
+        `;
+
+    timelineViewContainer.appendChild(stepCard);
+  }
+
+  // Add a chat message to the chat interface
+  function addChatMessage(role, content) {
+    const messageDiv = document.createElement("div");
+    messageDiv.className = `chat-message message-${role}`;
+
+    let formattedContent = content;
+
+    // Detect bash commands
+    const bashRegex = /^bash: (.+)$/i;
+    const bashMatch = content.match(bashRegex);
+
+    if (bashMatch) {
+      formattedContent = `
+                <div class="message-content">
+                    <div class="code-header">
+                        <span class="code-language">Bash</span>
+                        <button class="copy-button" onclick="copyToClipboard('${encodeHTML(content)}')">Copy</button>
+                    </div>
+                    <pre class="code-block"><code>${escapeHtml(bashMatch[1])}</code></pre>
+                </div>`;
+    } else {
+      formattedContent = `<div class="message-content">${content}</div>`;
+    }
+
+    messageDiv.innerHTML = formattedContent;
+    chatMessagesContainer.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+  }
+
+  // Update run info display (status, exit code, steps)
+  function updateRunInfo(data) {
+    if (data.exit_status) {
+      exitStatusElement.innerHTML = `<span class="info-item">Exit: ${data.exit_status}</span>`;
+    }
+
+    stepCountElement.innerHTML = `<span class="info-item">Steps: ${data.trajectory ? data.trajectory.length : 0}</span>`;
+
+    if (data.model_stats && Object.keys(data.model_stats).length > 0) {
+      // Update cost display sidebar
+      updateCostDisplay(data.model_stats);
+      costDisplayContainer.classList.remove("hidden");
+
+      // Add model stats to the chat as well (for backward compatibility)
+      addModelStats(data.model_stats);
     }
   }
 
-  // Create run card with enhanced information
+  // Create a visual card for a run in the runs list
   function createRunCard(run) {
     const card = document.createElement("div");
     card.className = "run-card";
@@ -536,7 +800,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return card;
   }
 
-  // Load run details
+  // Load run details and display in the chat interface
   async function loadRunDetails(runId) {
     currentRunId = runId;
 
@@ -552,6 +816,7 @@ document.addEventListener("DOMContentLoaded", function () {
       runDetailsContainer.classList.remove("hidden");
 
       // Add problem statement to chat (for context)
+      if (data.problem_statement?.type === "github")
       addChatMessage("user", data.problem_statement);
 
       // Use timeline view for trajectory steps
@@ -574,219 +839,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Update run info display
-  function updateRunInfo(data) {
-    if (data.exit_status) {
-      exitStatusElement.innerHTML = `<span class="info-item">Exit: ${data.exit_status}</span>`;
-    }
-
-    stepCountElement.innerHTML = `<span class="info-item">Steps: ${data.trajectory ? data.trajectory.length : 0}</span>`;
-
-    if (data.model_stats && Object.keys(data.model_stats).length > 0) {
-      // Update cost display sidebar
-      updateCostDisplay(data.model_stats);
-      costDisplayContainer.classList.remove("hidden");
-
-      // Add model stats to the chat as well (for backward compatibility)
-      addModelStats(data.model_stats);
-
-      // Also update the info bar for quick reference
-      const statsHtml = Object.entries(data.model_stats)
-        .map(
-          ([key, value]) => `
-                    <span class="info-item">${formatStatKey(key)}: ${typeof value === "number" ? value.toFixed(2) : value}</span>
-                `,
-        )
-        .join("");
-
-      if (statsHtml) {
-        stepCountElement.innerHTML += statsHtml;
-      }
-    }
-  }
-
-  // Start a new run
-  startRunButton.addEventListener("click", async function () {
-    const problemStatement = problemStatementInput.value.trim();
-
-    if (!problemStatement) {
-      alert("Please enter a problem statement");
-      return;
-    }
-
-    // Build configuration from UI inputs
-    const config = {};
-
-    // Handle repository configuration
-    const repoType = repoTypeSelect.value;
-    if (repoType === "local" && repoPathInput.value) {
-      if (!config.env) config.env = {};
-      if (!config.env.repo) config.env.repo = {};
-      config.env.repo.type = "local";
-      config.env.repo.path = repoPathInput.value;
-    } else if (repoType === "github" && githubRepoUrlInput.value) {
-      if (!config.env) config.env = {};
-      if (!config.env.repo) config.env.repo = {};
-      config.env.repo.type = "github";
-      config.env.repo.github_url = githubRepoUrlInput.value;
-    }
-
-    // Handle problem statement based on radio button selection
-    let finalProblemStatement = problemStatement;
-    const problemType = document.querySelector(
-      'input[name="problem-statement-type"]:checked',
-    ).value;
-
-    if (problemType === "github") {
-      // It's a GitHub issue URL
-      finalProblemStatement = {
-        type: "github",
-        github_url: problemStatement,
-      };
-    } else {
-      // It's text
-      finalProblemStatement = problemStatement;
-    }
-
-    // Handle agent configuration
-    const modelTemperature = document.getElementById("modelTemperature").value;
-    const modelName = document.getElementById("modelName").value;
-    const costLimit = document.getElementById("costLimit").value;
-    const enableBash = document.getElementById("enableBash").value;
-
-    if (modelTemperature || modelName || costLimit || enableBash) {
-      config.agent = {};
-
-      if (modelTemperature || modelName || costLimit) {
-        config.agent.model = {};
-
-        if (modelTemperature) {
-          config.agent.model.temperature = parseFloat(modelTemperature);
-        }
-
-        if (modelName) {
-          config.agent.model.name = modelName;
-        }
-
-        if (costLimit) {
-          config.agent.model.per_instance_cost_limit = parseFloat(costLimit);
-        }
-      }
-
-      if (enableBash !== "") {
-        if (!config.agent.tools) config.agent.tools = {};
-        config.agent.tools.enable_bash_tool = enableBash === "true";
-      }
-    }
-
-    try {
-      // Handle config file upload if present
-      let uploadedConfig = null;
-      if (configFileInput.files.length > 0) {
-        const file = configFileInput.files[0];
-        const reader = new FileReader();
-
-        // Read the file asynchronously
-        const yamlText = await new Promise((resolve, reject) => {
-          reader.onload = (e) => resolve(e.target.result);
-          reader.onerror = reject;
-          reader.readAsText(file);
-        });
-
-        // Parse YAML content using js-yaml
-        let yamlConfig;
-        try {
-          // Load js-yaml dynamically if not available
-          let jsyaml;
-          if (typeof window.jsyaml === "undefined") {
-            const response = await fetch("/static/js-yaml.min.js");
-            if (!response.ok) {
-              throw new Error(
-                "js-yaml library not found. Please ensure it's included in the static files.",
-              );
-            }
-            const yamlScript = document.createElement("script");
-            yamlScript.src = "/static/js-yaml.min.js";
-            yamlScript.onload = () => {
-              jsyaml = window.jsyaml;
-            };
-            await new Promise((resolve) => {
-              yamlScript.onload = resolve;
-              document.head.appendChild(yamlScript);
-            });
-          }
-
-          // Use js-yaml to parse the YAML content
-          yamlConfig = jsyaml
-            ? window.jsyaml.load(yamlText)
-            : JSON.parse(yamlText.replace(/\:/g, '"'));
-          uploadedConfig = yamlConfig || {};
-        } catch (parseError) {
-          console.error("Error parsing YAML file:", parseError);
-          alert(
-            "Error parsing configuration file. Please ensure it is a valid YAML file.",
-          );
-          throw parseError;
-        }
-      }
-
-      const requestBody = { problem_statement: finalProblemStatement };
-      
-      // Include GitHub token if provided
-      const githubToken = githubTokenInput.value.trim();
-      if (githubToken) {
-        requestBody.github_token = githubToken;
-      }
-      
-      if (Object.keys(config).length > 0) {
-        requestBody.config = config;
-      }
-      if (uploadedConfig) {
-        // If we have both inline config and uploaded config, merge them
-        // Uploaded config takes precedence over inline config
-        const mergedConfig = JSON.parse(JSON.stringify(uploadedConfig)); // Deep copy
-
-        // Merge inline config into uploaded config
-        for (const [key, value] of Object.entries(config)) {
-          if (typeof value === "object" && value !== null) {
-            if (!mergedConfig[key]) {
-              mergedConfig[key] = {};
-            }
-            Object.assign(mergedConfig[key], value);
-          } else {
-            mergedConfig[key] = value;
-          }
-        }
-
-        requestBody.config = mergedConfig;
-      }
-
-      const response = await fetch("/api/runs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        addChatMessage("system", `Started new run: ${data.run_id}`);
-        currentRunId = data.run_id;
-
-        // Refresh runs list
-        refreshRunsList();
-      } else {
-        throw new Error(data.error || "Failed to start run");
-      }
-    } catch (error) {
-      console.error("Error starting run:", error);
-      addChatMessage("system", `Error: ${error.message}`);
-    }
-  });
-
-  // Refresh runs list
+  // Refresh the list of active runs
   async function refreshRunsList() {
     try {
       const response = await fetch("/api/runs");
@@ -803,252 +856,169 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  // Socket.IO event handlers
+  // Initialize the workflow when page loads
+  initWorkflow();
+
+  // Copy to clipboard functionality
+  window.copyToClipboard = function (text) {
+    navigator.clipboard.writeText(text).then(function () {
+      alert("Copied to clipboard!");
+    });
+  };
+
+  // Socket.IO event handlers for real-time updates
   socket.on("connect", function () {
     console.log("Connected to server");
-    addChatMessage("system", "Connected to SWE-agent server");
     refreshRunsList();
   });
 
   socket.on("update", function (data) {
-    console.log("Received update:", data);
+    if (data.run_id !== currentRunId) return;
 
-    if (data.run_id === currentRunId) {
-      // Handle different types of updates with meaningful messages
-      if (data.status === "running" && data.current_step) {
-        // Show the actual action and observation from the step
-        const step = data.current_step;
+    const stepNumber = data.step_count || 1;
+    const stepData = data.current_step || null;
+    const message = data.message || "";
 
-        // Group related messages together for real-time updates
-        addChatMessage("system", `<strong>Step ${data.step_count}</strong>`);
+    // Group all messages under the current step or global
+    const stepContainer = getStepContainer(stepNumber);
 
-        if (step.thought) {
-          addChatMessage("assistant", `Thought: ${step.thought}`);
-        }
+    // Clear previous content
+    stepContainer.innerHTML = "";
 
-        if (step.action) {
-          // Check if action contains code that should be collapsible
-          const bashRegex = /^bash: (.+)$/i;
-          if (bashRegex.test(step.action)) {
-            addCodeBlock(
-              "system",
-              "Bash",
-              step.action.replace(bashRegex, "$1"),
-            );
-          } else {
-            addChatMessage("system", `Action: ${step.action}`);
-          }
-        }
+    // Handle status
+    if (data.status === "completed") {
+      // Final message
+      addFinalMessage(stepContainer, data.exit_status || "success", data.step_count);
+      return;
+    }
 
-        if (step.observation) {
-          addChatMessage("assistant", `Observation: ${step.observation}`);
-        }
+    // If no step data, just show message
+    if (!stepData && !message) {
+      addChatMessage(stepContainer, "system", "Agent is running...");
+      return;
+    }
 
-        // Display model stats in a consistent format
-        if (data.model_stats && Object.keys(data.model_stats).length > 0) {
-          updateCostDisplay(data.model_stats);
-          costDisplayContainer.classList.remove("hidden");
-          addModelStats(data.model_stats);
-        }
-      } else if (data.status === "completed") {
-        addChatMessage(
-          "system",
-          `Run completed! Exit status: ${data.exit_status || "success"}. Total steps: ${data.step_count}`,
-        );
-
-        // Display final model stats
-        if (data.model_stats && Object.keys(data.model_stats).length > 0) {
-          updateCostDisplay(data.model_stats);
-          costDisplayContainer.classList.remove("hidden");
-          addModelStats(data.model_stats);
-        }
-      } else if (data.status === "running" && data.message) {
-        // Handle intermediate messages like step start, action planning, etc.
-        addChatMessage("system", data.message);
-      } else if (data.status === "running") {
-        // Generic running update
-        addChatMessage(
-          "system",
-          `Agent is running... Step ${data.step_count || 0}`,
-        );
+    // === Step Flow: Thought → Action → Observation ===
+    if (stepData) {
+      // 1. Thought (if present)
+      if (stepData.thought) {
+        addThoughtMessage(stepContainer, stepData.thought);
       } else {
-        // Fallback for other statuses
-        const statusText = data.message || data.status || "progress";
-        addChatMessage("system", `Update: ${statusText}`);
-      }
-    }
-
-    // Refresh runs list on any update
-    refreshRunsList();
-  });
-
-  socket.on("disconnect", function () {
-    console.log("Disconnected from server");
-    addChatMessage("system", "Disconnected from SWE-agent server");
-  });
-
-  const completer = document.querySelector("auto-complete");
-  const container = completer.parentElement;
-  completer.addEventListener("loadstart", () =>
-    container.classList.add("is-loading"),
-  );
-  completer.addEventListener("loadend", () =>
-    container.classList.remove("is-loading"),
-  );
-  completer.addEventListener("load", () =>
-    container.classList.add("is-success"),
-  );
-  completer.addEventListener("error", () =>
-    container.classList.add("is-error"),
-  );
-  completer.fetchResult = async (url) => {
-    response = await fetch(url);
-    json = await response.json();
-
-    // Enhanced HTML with professional GitHub-like styling
-    html = json.repositories
-      .map(
-        (r) => `
-            <li role="option" data-autocomplete-value="${r.html_url}" class="autocomplete-item">
-                <span class="autocomplete-repo-icon">🐙</span>
-                <div class="autocomplete-repo-info">
-                    <div class="autocomplete-repo-name">${r.full_name}</div>
-                    ${r.description ? `<div class="autocomplete-repo-description">${r.description}</div>` : ""}
-                    <div class="autocomplete-repo-stats">
-                        <span class="autocomplete-repo-stat autocomplete-star-icon">⭐ ${r.stargazers_count || 0}</span>
-                        <span class="autocomplete-repo-stat autocomplete-fork-icon">🍴 ${r.forks_count || 0}</span>
-                    </div>
-                </div>
-            </li>
-        `,
-      )
-      .join("");
-
-    return html;
-  };
-
-  // Update GitHub issues section visibility based on current selections
-  function updateGitHubIssuesSectionVisibility() {
-    const isGithubProblemType = githubProblemTypeRadio.checked;
-    const isGithubRepoSelected =
-      repoTypeSelect.value === "github" && githubRepoUrlInput.value.trim();
-
-    if (isGithubProblemType && isGithubRepoSelected) {
-      githubIssuesSection.classList.remove("hidden");
-      updateGitHubIssueSource();
-    } else {
-      githubIssuesSection.classList.add("hidden");
-    }
-  }
-
-  // Update the GitHub issue source URL based on current repository selection
-  function updateGitHubIssueSource() {
-    const repoUrl = githubRepoUrlInput.value.trim();
-
-    if (!repoUrl) {
-      return;
-    }
-
-    // Extract owner/repo from GitHub URL
-    // Handle formats like: https://github.com/owner/repo or owner/repo
-    let repoName = repoUrl;
-
-    if (repoUrl.startsWith("https://github.com/")) {
-      const parts = repoUrl.split("/");
-      if (parts.length >= 5) {
-        repoName = `${parts[3]}/${parts[4]}`;
-      }
-    } else if (repoUrl.includes("/")) {
-      // Already in owner/repo format
-      repoName = repoUrl;
-    }
-
-    // Update the data attribute for the auto-complete element
-    githubIssueInput.dataset.repoUrl = repoName;
-  }
-
-  // Fetch GitHub issues from API based on current repository and search query
-  async function fetchGitHubIssues() {
-    const repoUrl = githubIssueInput.dataset.repoUrl;
-    const searchQuery = githubIssueInput.value.trim();
-
-    if (!repoUrl) {
-      // Clear results if no repository is selected
-      document.getElementById("github-issue-results").innerHTML = "";
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `/api/github/issues?repo=${encodeURIComponent(repoUrl)}`,
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        // Implied action (no thought needed)
+        addImpliedActionMessage(stepContainer, stepData.action);
       }
 
-      const data = await response.json();
-      displayGitHubIssues(data.issues || []);
-    } catch (error) {
-      console.error("Error fetching GitHub issues:", error);
-      // Clear results on error
-      document.getElementById("github-issue-results").innerHTML = "";
-    }
-  }
-
-  // Display GitHub issues in the dropdown
-  function displayGitHubIssues(issues) {
-    const resultsContainer = document.getElementById("github-issue-results");
-    if (!resultsContainer) return;
-
-    if (issues.length === 0) {
-      resultsContainer.innerHTML =
-        '<li class="no-results">No open issues found</li>';
-      return;
-    }
-
-    const html = issues
-      .map(
-        (issue) => `
-            <li class="github-issue-result" data-url="${issue.url}">
-                <div class="github-issue-number">#${issue.number}</div>
-                <div class="github-issue-title">${escapeHtml(issue.title)}</div>
-                ${issue.body ? `<div class="github-issue-body">${truncateText(escapeHtml(issue.body), 100)}</div>` : ""}
-            </li>
-        `,
-      )
-      .join("");
-
-    resultsContainer.innerHTML = html;
-
-    // Add click handlers to issue items
-    document.querySelectorAll(".github-issue-result").forEach((item) => {
-      item.addEventListener("click", function () {
-        const url = this.dataset.url;
-        if (url) {
-          problemStatementInput.value = url;
-          githubIssueInput.value = ""; // Clear the search input
-          resultsContainer.innerHTML = ""; // Hide results
+      // 2. Action (tool call)
+      if (stepData.action) {
+        const bashRegex = /^bash: (.+)$/i;
+        if (bashRegex.test(stepData.action)) {
+          addToolCallMessage(stepContainer, "Bash", stepData.action.replace(bashRegex, "$1"));
+        } else {
+          addToolCallMessage(stepContainer, "Action", stepData.action);
         }
-      });
-    });
+      }
+
+      // 3. Observation (result)
+      if (stepData.observation) {
+        addObservationMessage(stepContainer, stepData.observation);
+      }
+    }
+
+    // Handle general messages (e.g., "Starting run", "Step 3 of 5")
+    if (message) {
+      message_text = message.split("Planning: ")
+      if (message === message_text) {
+        addChatMessage(stepContainer, "system", message);
+      }
+    }
+
+    // Display model stats
+    if (data.model_stats && Object.keys(data.model_stats).length > 0) {
+      updateCostDisplay(data.model_stats);
+      costDisplayContainer.classList.remove("hidden");
+      addModelStats(data.model_stats);
+    }
+
+    // Auto-scroll to bottom
+    stepContainer.scrollTop = stepContainer.scrollHeight;
+  });
+
+  // === Helper Functions ===
+
+  function getStepContainer(stepNumber) {
+    if (!stepMap.has(stepNumber)) {
+      const container = document.createElement("div");
+      container.className = "step-card";
+      container.dataset.step = stepNumber;
+      container.dataset.open = "false";
+
+      const header = document.createElement("div");
+      header.className = "step-header";
+      header.innerHTML = `<span class="step-number">Step ${stepNumber}</span> <span class="step-icon">▶</span>`;
+      container.appendChild(header);
+
+      const content = document.createElement("div");
+      content.className = "step-content";
+      content.innerHTML = `<div class="step-details"></div>`;
+      container.appendChild(content);
+
+      // Add to container
+      const containerEl = document.getElementById("chat-container");
+      containerEl.appendChild(container);
+
+      stepMap.set(stepNumber, container);
+    }
+    return stepMap.get(stepNumber);
   }
 
-  // Helper function to escape HTML
-  function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+  function addThoughtMessage(container, thought) {
+    const msg = document.createElement("div");
+    msg.className = "thought-message";
+    msg.innerHTML = `<span class="icon">🧠</span> <strong>Thought:</strong> ${thought}`;
+    container.querySelector(".step-details").appendChild(msg);
   }
 
-  // Helper function to truncate text
-  function truncateText(text, maxLength) {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + "...";
+  function addImpliedActionMessage(container, action) {
+    const msg = document.createElement("div");
+    msg.className = "implied-action";
+    msg.innerHTML = `<span class="icon">➡️</span> <strong>Implied:</strong> ${action}`;
+    container.querySelector(".step-details").appendChild(msg);
   }
 
-  // Initial load
-  refreshRunsList();
+  function addToolCallMessage(container, type, action) {
+    const block = document.createElement("div");
+    block.className = "tool-call";
+    block.innerHTML = `
+      <div class="tool-header">
+        <span class="icon">⚙️</span>
+        <span class="tool-type">${type}</span>
+      </div>
+      <div class="tool-content">
+        <pre class="code-block"><code>${escapeHtml(action)}</code></pre>
+        <button class="copy-button" onclick="copyToClipboard('${encodeHTML(action)}')">Copy</button>
+      </div>
+    `;
+    container.querySelector(".step-details").appendChild(block);
+  }
 
-  // Load available models for the dropdown
-  fetchModels();
+  function addObservationMessage(container, observation) {
+    const msg = document.createElement("div");
+    msg.className = "observation-message";
+    msg.innerHTML = `<span class="icon">✅</span> <strong>Observation:</strong> ${observation}`;
+    container.querySelector(".step-details").appendChild(msg);
+  }
+
+  function addFinalMessage(container, status, stepCount) {
+    const msg = document.createElement("div");
+    msg.className = "final-message";
+    msg.innerHTML = `<strong>✅ Run completed!</strong> Exit status: ${status}. Total steps: ${stepCount}`;
+    container.querySelector(".step-details").appendChild(msg);
+  }
+
+  function addChatMessage(container, role, content) {
+    const msg = document.createElement("div");
+    msg.className = `chat-message message-${role}`;
+    msg.innerHTML = `<strong>${role}:</strong> ${content}`;
+    container.querySelector(".step-details").appendChild(msg);
+  }
 });
