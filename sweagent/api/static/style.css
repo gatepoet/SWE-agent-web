@@ -1060,3 +1060,37 @@ auto-complete [aria-disabled="true"] {
   color: #656d76;
   opacity: 0.6;
 }
+
+/* Workflow step containers */
+.workflow-step {
+  margin: 25px 0;
+  padding: 20px;
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.workflow-step h2 {
+  color: #667eea;
+  margin-bottom: 8px;
+  font-size: 1.3em;
+}
+
+.step-description {
+  color: #666;
+  margin-bottom: 15px;
+  font-style: italic;
+}
+
+/* Workflow navigation buttons */
+.workflow-navigation {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* Enhanced config section styling for workflow */
+.config-section.hidden {
+  display: none;
+}

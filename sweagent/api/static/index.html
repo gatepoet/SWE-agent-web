@@ -15,68 +15,67 @@
         </header>
 
         <div class="problem-input">
-            <!-- Problem Statement Type Selection -->
-            <div class="problem-type-selection">
-                <label class="radio-label">
-                    <input type="radio" name="problem-statement-type" id="textProblemType" value="text" checked>
-                    <span class="radio-custom"></span>
-                    <span class="radio-text">📝 Text Problem Statement</span>
-                </label>
-                <label class="radio-label">
-                    <input type="radio" name="problem-statement-type" id="githubProblemType" value="github">
-                    <span class="radio-custom"></span>
-                    <span class="radio-text">🐙 GitHub Issue URL</span>
-                </label>
-            </div>
-
-            <!-- Problem Statement Input - can be text or GitHub issue URL -->
-            <textarea id="problemStatement" placeholder="Enter your problem statement here..." rows="6"></textarea>
-            <small id="inputHint">💡 Enter a text description of the problem you want to solve</small>
-
-            <!-- GitHub-specific hint (shown when GitHub radio is selected) -->
-            <small id="githubHint" class="hidden">💡 Enter GitHub issue URL: https://github.com/owner/repo/issues/123</small>
-
-            <!-- GitHub Issues Selection (shown when GitHub repo is selected and problem type is GitHub) -->
-            <div id="githubIssuesSection" class="hidden">
-                <label for="githubIssueSelection">🔍 Select from Open Issues:</label>
-                <input type="text" id="githubIssueInput" name="githubIssueSelection"
-                       placeholder="Search open issues from selected repository..."
-                       data-repo-url="">
-                <ul id="github-issue-results"></ul>
-                <small id="githubIssuesHint">💡 Select an issue from the dropdown or enter a GitHub issue URL manually</small>
-            </div>
-
-            <!-- Repository Configuration -->
-            <div class="config-section">
-                <summary>📁 Repository Configuration (Optional)</summary>
-                <div class="config-options">
-                    <div class="config-group">
-                        <label for="repoType">Repository Type:</label>
-                        <select id="repoType">
-                            <option value="none">None (use current directory)</option>
-                            <option value="local">Local Path</option>
-                            <option value="github">GitHub Repository</option>
-                        </select>
-                    </div>
-                    <div class="config-group" id="repoPathGroup" style="display: none;">
-                        <label for="repoPath">Local Repository Path:</label>
-                        <input type="text" id="repoPath" placeholder="/path/to/repository">
-                    </div>
-                    <div class="config-group" id="github-repo-group" style="display: none;">
-                        <label id="github-repo-label" for="github-repo-input">GitHub Repository URL:</label>
-                        <auto-complete id="github-repo-auto-complete" src="/api/github/search" for="github-repo-results" aria-labelledby="github-repo-label">
-                            <input type="text" id="github-repo-input" name="githubRepoUrl" aria-labelledby="github-repo-label" placeholder="https://github.com/owner/repo">
-                            <button id="github-repo-clear">×</button>
-                            <ul id="github-repo-results"></ul>
-                            <div id="github-repo-results-feedback" class="sr-only"></div>
-                        </auto-complete>
-                    </div>
+            <!-- GitHub Authentication Step - Now First! -->
+            <div id="githubAuthSection" class="workflow-step">
+                <h2>🔑 GitHub Authentication</h2>
+                <p class="step-description">Enter your GitHub token to access private repositories and issues</p>
+                
+                <div class="config-group">
+                    <label for="githubToken">GitHub Personal Access Token:</label>
+                    <input type="password" id="githubToken" placeholder="ghp_... or github_pat_..." autocomplete="off">
+                    <small id="tokenHint">💡 Enter your GitHub token for private repository access and higher rate limits</small>
+                </div>
+                
+                <div class="config-group">
+                    <button id="validateTokenBtn" class="btn-primary">Validate Token</button>
+                    <span id="tokenValidationStatus" class="validation-status hidden"></span>
                 </div>
             </div>
 
-            <!-- Advanced Configuration -->
-            <details id="configSection" class="config-section">
-                <summary>🔧 Advanced Agent Configuration (Optional)</summary>
+            <!-- GitHub Repository Selection Step -->
+            <div id="githubRepoSection" class="workflow-step hidden">
+                <h2>🐙 Select GitHub Repository</h2>
+                <p class="step-description">Choose the repository containing the issue you want to work on</p>
+                
+                <div class="config-group">
+                    <label for="github-repo-input">GitHub Repository:</label>
+                    <auto-complete id="github-repo-auto-complete" src="/api/github/search" for="github-repo-results" aria-labelledby="github-repo-label">
+                        <input type="text" id="github-repo-input" name="githubRepoUrl" aria-labelledby="github-repo-label" placeholder="https://github.com/owner/repo or owner/repo">
+                        <button id="github-repo-clear">×</button>
+                        <ul id="github-repo-results"></ul>
+                        <div id="github-repo-results-feedback" class="sr-only"></div>
+                    </auto-complete>
+                </div>
+            </div>
+
+            <!-- GitHub Issue Selection Step -->
+            <div id="githubIssueSection" class="workflow-step hidden">
+                <h2>📋 Select GitHub Issue</h2>
+                <p class="step-description">Choose an issue from the repository or enter a custom problem statement</p>
+                
+                <!-- GitHub Issues Selection -->
+                <div id="githubIssuesSection" class="hidden">
+                    <label for="githubIssueInput">🔍 Select from Open Issues:</label>
+                    <input type="text" id="githubIssueInput" name="githubIssueSelection"
+                           placeholder="Search open issues from selected repository..."
+                           data-repo-url="">
+                    <ul id="github-issue-results"></ul>
+                    <small id="githubIssuesHint">💡 Select an issue from the dropdown or enter a GitHub issue URL manually</small>
+                </div>
+                
+                <!-- Manual Problem Statement Input -->
+                <div class="config-group">
+                    <label for="problemStatement">Problem Statement:</label>
+                    <textarea id="problemStatement" placeholder="Enter your problem statement or GitHub issue URL here..." rows="4"></textarea>
+                    <small id="inputHint">💡 Enter a text description of the problem or paste a GitHub issue URL</small>
+                </div>
+            </div>
+
+            <!-- Optional Configuration Step -->
+            <div id="configSection" class="workflow-step hidden">
+                <h2>⚙️ Agent Configuration (Optional)</h2>
+                <p class="step-description">Customize agent behavior and settings</p>
+                
                 <div class="config-options">
                     <div class="config-group">
                         <label for="modelTemperature">Model Temperature:</label>
@@ -106,24 +105,10 @@
                         <small>💡 Control whether the agent can execute bash commands</small>
                     </div>
                 </div>
-            <!-- GitHub Token Input -->
-            <div class="config-section">
-                <summary>🔑 GitHub Token (Optional)</summary>
-                <div class="config-options">
-                    <div class="config-group">
-                        <label for="githubToken">GitHub Personal Access Token:</label>
-                        <input type="password" id="githubToken" placeholder="ghp_... or github_pat_..." autocomplete="off">
-                        <small id="tokenHint">💡 Enter your GitHub token for private repository access and higher rate limits</small>
-                    </div>
-                    <div class="config-group">
-                        <button id="validateTokenBtn" class="btn-secondary">Validate Token</button>
-                        <span id="tokenValidationStatus" class="validation-status hidden"></span>
-                    </div>
-                </div>
             </div>
 
-            <!-- Config File Upload -->
-            <div class="config-section">
+            <!-- Config File Upload (kept for advanced users) -->
+            <div class="config-section hidden">
                 <label for="configFile" class="file-upload-label">
                     📄 Upload Configuration File (YAML)
                     <input type="file" id="configFile" accept=".yaml,.yml" style="display: none;">
@@ -132,7 +117,12 @@
                 <small>Or <a href="/api/config/schema" target="_blank">view configuration schema</a> for available options</small>
             </div>
 
-            <button id="startRun" class="btn-primary">Start SWE-agent</button>
+            <!-- Navigation buttons -->
+            <div class="workflow-navigation">
+                <button id="prevStepBtn" class="btn-secondary hidden">← Previous Step</button>
+                <button id="nextStepBtn" class="btn-primary">Next →</button>
+                <button id="startRunBtn" class="btn-primary hidden">Start SWE-agent</button>
+            </div>
         </div>
 
         <div class="runs-list">

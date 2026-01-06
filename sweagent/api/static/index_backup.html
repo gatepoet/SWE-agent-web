@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWE-agent Chatbot Interface</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 SWE-agent Chatbot Interface</h1>
+            <p class="subtitle">Run software engineering tasks with AI-powered automation</p>
+        </header>
+
+        <div class="problem-input">
+            <!-- Problem Statement Type Selection -->
+            <div class="problem-type-selection">
+                <label class="radio-label">
+                    <input type="radio" name="problem-statement-type" id="textProblemType" value="text" checked>
+                    <span class="radio-custom"></span>
+                    <span class="radio-text">📝 Text Problem Statement</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="problem-statement-type" id="githubProblemType" value="github">
+                    <span class="radio-custom"></span>
+                    <span class="radio-text">🐙 GitHub Issue URL</span>
+                </label>
+            </div>
+
+            <!-- Problem Statement Input - can be text or GitHub issue URL -->
+            <textarea id="problemStatement" placeholder="Enter your problem statement here..." rows="6"></textarea>
+            <small id="inputHint">💡 Enter a text description of the problem you want to solve</small>
+
+            <!-- GitHub-specific hint (shown when GitHub radio is selected) -->
+            <small id="githubHint" class="hidden">💡 Enter GitHub issue URL: https://github.com/owner/repo/issues/123</small>
+
+            <!-- GitHub Issues Selection (shown when GitHub repo is selected and problem type is GitHub) -->
+            <div id="githubIssuesSection" class="hidden">
+                <label for="githubIssueSelection">🔍 Select from Open Issues:</label>
+                <input type="text" id="githubIssueInput" name="githubIssueSelection"
+                       placeholder="Search open issues from selected repository..."
+                       data-repo-url="">
+                <ul id="github-issue-results"></ul>
+                <small id="githubIssuesHint">💡 Select an issue from the dropdown or enter a GitHub issue URL manually</small>
+            </div>
+
+            <!-- Repository Configuration -->
+            <div class="config-section">
+                <summary>📁 Repository Configuration (Optional)</summary>
+                <div class="config-options">
+                    <div class="config-group">
+                        <label for="repoType">Repository Type:</label>
+                        <select id="repoType">
+                            <option value="none">None (use current directory)</option>
+                            <option value="local">Local Path</option>
+                            <option value="github">GitHub Repository</option>
+                        </select>
+                    </div>
+                    <div class="config-group" id="repoPathGroup" style="display: none;">
+                        <label for="repoPath">Local Repository Path:</label>
+                        <input type="text" id="repoPath" placeholder="/path/to/repository">
+                    </div>
+                    <div class="config-group" id="github-repo-group" style="display: none;">
+                        <label id="github-repo-label" for="github-repo-input">GitHub Repository URL:</label>
+                        <auto-complete id="github-repo-auto-complete" src="/api/github/search" for="github-repo-results" aria-labelledby="github-repo-label">
+                            <input type="text" id="github-repo-input" name="githubRepoUrl" aria-labelledby="github-repo-label" placeholder="https://github.com/owner/repo">
+                            <button id="github-repo-clear">×</button>
+                            <ul id="github-repo-results"></ul>
+                            <div id="github-repo-results-feedback" class="sr-only"></div>
+                        </auto-complete>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Configuration -->
+            <details id="configSection" class="config-section">
+                <summary>🔧 Advanced Agent Configuration (Optional)</summary>
+                <div class="config-options">
+                    <div class="config-group">
+                        <label for="modelTemperature">Model Temperature:</label>
+                        <input type="number" id="modelTemperature" min="0" max="2" step="0.1" placeholder="0.7 (default)">
+                        <small>💡 Higher values = more creative, lower values = more focused</small>
+                    </div>
+                    <div class="config-group">
+                        <label for="modelName">Model Name:</label>
+                        <select id="modelName">
+                            <option value="">Use default model</option>
+                            <!-- Model options will be populated by JavaScript -->
+                        </select>
+                        <small>💡 Select a model from the available options</small>
+                    </div>
+                    <div class="config-group">
+                        <label for="costLimit">Cost Limit ($):</label>
+                        <input type="number" id="costLimit" min="0" step="0.1" placeholder="2.0 (default)">
+                        <small>💡 Maximum cost per run to prevent unexpected charges</small>
+                    </div>
+                    <div class="config-group">
+                        <label for="enableBash">Enable Bash Tools:</label>
+                        <select id="enableBash">
+                            <option value="">Use default</option>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                        <small>💡 Control whether the agent can execute bash commands</small>
+                    </div>
+                </div>
+            <!-- GitHub Token Input -->
+            <div class="config-section">
+                <summary>🔑 GitHub Token (Optional)</summary>
+                <div class="config-options">
+                    <div class="config-group">
+                        <label for="githubToken">GitHub Personal Access Token:</label>
+                        <input type="password" id="githubToken" placeholder="ghp_... or github_pat_..." autocomplete="off">
+                        <small id="tokenHint">💡 Enter your GitHub token for private repository access and higher rate limits</small>
+                    </div>
+                    <div class="config-group">
+                        <button id="validateTokenBtn" class="btn-secondary">Validate Token</button>
+                        <span id="tokenValidationStatus" class="validation-status hidden"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config File Upload -->
+            <div class="config-section">
+                <label for="configFile" class="file-upload-label">
+                    📄 Upload Configuration File (YAML)
+                    <input type="file" id="configFile" accept=".yaml,.yml" style="display: none;">
+                    <span id="fileName">No file chosen</span>
+                </label>
+                <small>Or <a href="/api/config/schema" target="_blank">view configuration schema</a> for available options</small>
+            </div>
+
+            <button id="startRun" class="btn-primary">Start SWE-agent</button>
+        </div>
+
+        <div class="runs-list">
+            <h2>Active Runs</h2>
+            <div id="activeRuns" class="runs-container"></div>
+        </div>
+
+        <!-- Cost Display Sidebar - Fixed Placement -->
+        <div id="costDisplay" class="cost-display hidden">
+            <div class="cost-header">
+                <span>💰 Cost</span>
+                <span class="cost-icon">$</span>
+            </div>
+            <div id="costStats"></div>
+        </div>
+
+        <div class="chat-interface">
+            <h2>Chat Interface</h2>
+            <!-- Timeline View (will replace chat-messages when run is loaded) -->
+            <div id="timelineView" class="timeline-container hidden"></div>
+            <!-- Fallback Chat Messages View -->
+            <div id="chatMessages" class="chat-messages"></div>
+            <div id="runDetails" class="run-details hidden">
+                <div class="run-info">
+                    <span id="runStatus"></span>
+                    <span id="exitStatus"></span>
+                    <span id="stepCount"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.8.1/socket.io.min.js"></script>
+    <script type="module" src="https://unpkg.com/@github/auto-complete-element@latest/dist/bundle.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
