@@ -1041,6 +1041,50 @@ header h1 {
   border-width: 0;
 }
 
+/* Workflow step styling */
+.workflow-step {
+  margin-bottom: 30px;
+  padding: 25px;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.workflow-step h2 {
+  color: #667eea;
+  margin-bottom: 8px;
+  font-size: 1.5em;
+}
+
+.step-description {
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 0.95em;
+}
+
+.workflow-navigation {
+  display: flex;
+  gap: 15px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 12px;
+}
+
+.selected-repo-info {
+  margin: 20px 0;
+  padding: 15px;
+  background-color: #e3f2fd;
+  border-radius: 8px;
+  border-left: 4px solid #1976d2;
+}
+
+.selected-repo-info h3 {
+  color: #1976d2;
+  margin-bottom: 8px;
+}
+
 /* Auto-complete element styling - GitHub-like design */
 auto-complete {
   position: relative;

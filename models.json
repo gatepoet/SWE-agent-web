@@ -10,8 +10,8 @@
     "supports_reasoning": true
   },
   "openai/mistralai/devstral-small-2-2512": {
-    "max_input_tokens": 78000,
-    "max_output_tokens": 2000,
+    "max_input_tokens": 160000,
+    "max_output_tokens": 4000,
     "input_cost_per_token": 5e-06,
     "output_cost_per_token": 5e-06,
     "litellm_provider": "openai",

@@ -282,6 +282,52 @@ def get_github_issues():
         return jsonify({"error": str(e), "issues": []}), 500
 
 
+@app.route("/api/github/branches", methods=["GET"])
+def get_github_branches():
+    """Get branches for a specific GitHub repository."""
+    try:
+        # Get repository parameter from query string
+        repo = request.args.get("repo", "")
+
+        if not repo:
+            return jsonify({"error": "Repository parameter 'repo' is required (format: owner/repo)", "branches": []}), 400
+
+        # Get GitHub token from query string or use environment variable
+        github_token = request.args.get("github_token", os.getenv("GITHUB_TOKEN", ""))
+        headers = {}
+        if github_token:
+            headers["Authorization"] = f"token {github_token}"
+        headers["Accept"] = "application/vnd.github+json"
+
+        # Build GitHub API URL for repository branches
+        # Format: https://api.github.com/repos/owner/repo/branches
+        api_url = f"https://api.github.com/repos/{repo}/branches"
+
+        try:
+            response = requests.get(api_url, headers=headers, timeout=10)
+            response.raise_for_status()
+
+            data = response.json()
+            branches = []
+
+            for branch in data:
+                if "name" in branch:
+                    branches.append(branch["name"])
+
+            return jsonify({"repository": repo, "branches": branches})
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"GitHub API request failed: {e}")
+            # Return empty results on error
+            return jsonify(
+                {"error": f"Failed to fetch branches from GitHub: {str(e)}", "repository": repo, "branches": []}
+            ), 500
+
+    except Exception as e:
+        logger.error(f"Error getting GitHub branches: {e}")
+        return jsonify({"error": str(e), "branches": []}), 500
+
+
 @app.route("/api/status", methods=["GET"])
 def get_status():
     """Get server status."""
