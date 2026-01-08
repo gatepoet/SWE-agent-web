@@ -392,6 +392,55 @@ header h1 {
   font-size: 0.9em;
 }
 
+/* Action rendering styles */
+.toolkit {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.85em;
+}
+
+.tool-name {
+  background-color: #fff3e0;
+  color: #ff6b35;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.85em;
+}
+
+.params {
+  color: #666;
+  font-size: 0.9em;
+  margin-left: 8px;
+}
+
+.diff {
+  background-color: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 8px;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  font-size: 0.85em;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.diff::before {
+  content: "diff";
+  display: block;
+  background-color: #e9ecef;
+  color: #495057;
+  padding: 4px 8px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  border-radius: 2px;
+}
+
 /* Cost Display - Fixed placement in sidebar */
 .cost-display {
   position: fixed;

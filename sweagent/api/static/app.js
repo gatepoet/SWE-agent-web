@@ -771,7 +771,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Load run details and display in the chat interface
   async function loadRunDetails(runId) {
-    currentRunId = runId;
+    window.currentRunId = runId;
 
     try {
       const response = await fetch(`/api/runs/${runId}/trajectory`);
@@ -786,7 +786,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
       // Add problem statement to chat (for context)
       if (data.problem_statement?.type === "github")
-      addChatMessage("user", data.problem_statement);
+      addChatMessage("user", JSON.stringify(data.problem_statement));
 
       // Use timeline view for trajectory steps
       if (data.trajectory && data.trajectory.length > 0) {
@@ -850,9 +850,8 @@ document.addEventListener("DOMContentLoaded", function () {
     console.log("Connected to server");
     refreshRunsList();
   });
-
   socket.on("update", function (data) {
-    if (data.run_id !== currentRunId) return;
+    if (data.run_id !== window.currentRunId) return;
 
     const stepNumber = data.step_count || 1;
     const stepData = data.current_step || null;
@@ -873,7 +872,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // If no step data, just show message
     if (!stepData && !message) {
-      addChatMessage(stepContainer, "system", "Agent is running...");
+      addChatMessageNew(stepContainer, "system", "Agent is running...");
       return;
     }
 
@@ -904,7 +903,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (message) {
       message_text = message.split("Planning: ")
       if (message === message_text) {
-        addChatMessage(stepContainer, "system", message);
+        addChatMessageNew(stepContainer, "system", message);
       }
     }
 
@@ -921,7 +920,7 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // === Helper Functions ===
-
+  const stepMap = new Map();
   function getStepContainer(stepNumber) {
     if (!stepMap.has(stepNumber)) {
       const container = document.createElement("div");
@@ -1009,7 +1008,7 @@ document.addEventListener("DOMContentLoaded", function () {
     container.appendChild(msg);
   }
 
-  function addChatMessage(container, role, content) {
+  function addChatMessageNew(container, role, content) {
     const msg = document.createElement("div");
     msg.className = `chat-message message-${role}`;
     msg.innerHTML = `<strong>${role}:</strong> ${content}`;
