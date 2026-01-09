@@ -135,6 +135,13 @@ class OpenPRHook(RunHook):
         self._env = run.env
         self._token: str = os.getenv("GITHUB_TOKEN", "")
         self._problem_statement = run.problem_statement
+        
+        # Set GITHUB_TOKEN in the container environment so git commands can use it
+        if self._token and hasattr(self._env, 'set_env_variables'):
+            try:
+                self._env.set_env_variables({"GITHUB_TOKEN": self._token})
+            except Exception as e:
+                self.logger.warning(f"Failed to set GITHUB_TOKEN in container environment: {e}")
 
     def on_instance_completed(self, result: AgentRunResult):
         if self.should_open_pr(result):
