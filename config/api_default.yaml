@@ -75,8 +75,8 @@ agent:
       type: function_calling
   history_processors:
     - type: image_parsing  # parses base64 encoded images in the observation
-    - type: cache_control
-      last_n_messages: 5
+    - type: last_n_observations
+      n: 5
   model:
     #temperature: 1.
     # completion_kwargs:

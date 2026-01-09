@@ -395,7 +395,7 @@ document.addEventListener("DOMContentLoaded", function () {
       item.addEventListener("click", function() {
         selectedIssueUrl = this.dataset.url;
         manualIssueText.value = this.dataset.url;
-        githubIssueInput.value = issue.title || "";
+        githubIssueInput.value = this.dataset.url || "";
       });
     });
   }
@@ -497,7 +497,7 @@ document.addEventListener("DOMContentLoaded", function () {
       
       // You could navigate to a run monitoring view here
       // For now, just show success message
-      alert(`Run started successfully! Run ID: ${runId}`);
+      refreshRunsList();
     } catch (error) {
       console.error("Error starting agent:", error);
       alert("Failed to start agent: " + error.message);
@@ -671,10 +671,19 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
 
-    if (stepData.observation) {
-      observationContent = formatComponent("Observation", stepData.observation, "observation");
+if (stepData.observation) {
+      // title = observation up to and included the first colon : box the rest of the content
+      const colonIndex = stepData.observation.indexOf(':');
+      let title, content;
+      if (colonIndex !== -1) {
+        title = stepData.observation.substring(0, colonIndex + 1);
+        content = stepData.observation.substring(colonIndex + 1).trim();
+      } else {
+        title = "👁️‍🗨️ Observation";
+        content = stepData.observation;
+      }
+      observationContent = formatComponent(title, content, "observation");
     }
-
     if (stepData.response) {
       responseContent = formatComponent("Response", stepData.response, "response");
     }
@@ -939,6 +948,7 @@ document.addEventListener("DOMContentLoaded", function () {
       addModelStats(data.model_stats);
     }
 
+    refreshRunsList();
     // Auto-scroll to bottom
     stepContainer.scrollTop = stepContainer.scrollHeight;
   });
@@ -963,7 +973,7 @@ document.addEventListener("DOMContentLoaded", function () {
       container.appendChild(content);
 
       // Add to container
-      const containerEl = document.getElementById("chat-container");
+      const containerEl = document.getElementById("chatMessages");
       containerEl.appendChild(container);
 
       stepMap.set(stepNumber, container);
@@ -975,14 +985,14 @@ document.addEventListener("DOMContentLoaded", function () {
     const msg = document.createElement("div");
     msg.className = "thought-message";
     msg.innerHTML = `<span class="icon">🧠</span> <strong>Thought:</strong> ${thought}`;
-    container.querySelector(".step-details").appendChild(msg);
+    container.appendChild(msg);
   }
 
   function addImpliedActionMessage(container, action) {
     const msg = document.createElement("div");
     msg.className = "implied-action";
     msg.innerHTML = `<span class="icon">➡️</span> <strong>Implied:</strong> ${action}`;
-    container.querySelector(".step-details").appendChild(msg);
+    container.appendChild(msg);
   }
 
   function addToolCallMessage(container, type, action) {
@@ -998,27 +1008,27 @@ document.addEventListener("DOMContentLoaded", function () {
         <button class="copy-button" onclick="copyToClipboard('${encodeHTML(action)}')">Copy</button>
       </div>
     `;
-    container.querySelector(".step-details").appendChild(block);
+    container.appendChild(block);
   }
 
   function addObservationMessage(container, observation) {
     const msg = document.createElement("div");
     msg.className = "observation-message";
     msg.innerHTML = `<span class="icon">✅</span> <strong>Observation:</strong> ${observation}`;
-    container.querySelector(".step-details").appendChild(msg);
+    container.appendChild(msg);
   }
 
   function addFinalMessage(container, status, stepCount) {
     const msg = document.createElement("div");
     msg.className = "final-message";
     msg.innerHTML = `<strong>✅ Run completed!</strong> Exit status: ${status}. Total steps: ${stepCount}`;
-    container.querySelector(".step-details").appendChild(msg);
+    container.appendChild(msg);
   }
 
   function addChatMessage(container, role, content) {
     const msg = document.createElement("div");
     msg.className = `chat-message message-${role}`;
     msg.innerHTML = `<strong>${role}:</strong> ${content}`;
-    container.querySelector(".step-details").appendChild(msg);
+    container.appendChild(msg);
   }
 });

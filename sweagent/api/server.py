@@ -130,6 +130,24 @@ def create_run():
 
     return jsonify({"run_id": run_id, "status": "started", "message": f"Run {run_id} started"}), 202
 
+def is_production():
+    return os.getenv('NODE_ENV') == 'production'
+
+if not is_production():
+    @app.route('/favicon.ico')
+    def ignore_favicon():
+        return ''  # Chrome devtools requires this
+    
+@app.route('/.well-known/appspecific/com.chrome.devtools.json')
+def serve_dev_server():
+    if not is_production():
+        return jsonify({
+            "workspace": {
+                "root": str(Path(__file__).parent.resolve()),
+                "uuid": str(uuid.uuid4())
+            }
+        })
+    return '', 204  # No content in production
 
 @app.route("/api/models", methods=["GET"])
 def get_models():
@@ -376,6 +394,18 @@ def serve_index():
     """Serve the main HTML page."""
     return send_from_directory(app.static_folder, "index.html")
 
+
+# Serve all the images in the workspace root folders /assets and /docs/assets
+@app.route("/assets/<path:filename>", methods=["GET"])
+def serve_static(filename: str):
+    """Serve static files."""
+    return send_from_directory(Path(app.static_folder).joinpath("assets"), filename)
+
+
+@app.route("/docs/assets/<path:filename>", methods=["GET"])
+def serve_docs_static(filename: str):
+    """Serve static files."""
+    return send_from_directory(os.path.join(app.static_folder, "docs/assets"), filename)
 
 @socketio.on("connect")
 def handle_connect():
