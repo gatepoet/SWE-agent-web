@@ -595,7 +595,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     messageDiv.innerHTML = statsHtml;
     chatMessagesContainer.appendChild(messageDiv);
-    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+    smoothScrollToBottom(chatMessagesContainer);
   }
 
   // Format stat key for display (used by updateCostDisplay and addModelStats)
@@ -727,7 +727,7 @@ if (stepData.observation) {
     chatMessagesContainer.appendChild(messageDiv);
     
     // Scroll to bottom
-    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+    smoothScrollToBottom(chatMessagesContainer);
   }
 
   // Update run info display (status, exit code, steps)
@@ -875,6 +875,14 @@ if (stepData.observation) {
     });
   };
 
+  // Helper function for smooth scrolling (reduces forced reflows)
+  function smoothScrollToBottom(element) {
+    // Use requestAnimationFrame to batch with other operations
+    requestAnimationFrame(() => {
+      element.scrollTop = element.scrollHeight;
+    });
+  }
+
   // Socket.IO event handlers for real-time updates
   socket.on("connect", function () {
     console.log("Connected to server");
@@ -950,7 +958,7 @@ if (stepData.observation) {
 
     refreshRunsList();
     // Auto-scroll to bottom
-    stepContainer.scrollTop = stepContainer.scrollHeight;
+    smoothScrollToBottom(stepContainer);
   });
 
   // === Helper Functions ===

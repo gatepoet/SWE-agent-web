@@ -20,16 +20,18 @@
                 <h2>🔑 Step 1: GitHub Authentication</h2>
                 <p class="step-description">Enter your GitHub token to access repositories and issues</p>
                 
-                <div class="config-group">
-                    <label for="githubToken">GitHub Personal Access Token:</label>
-                    <input type="password" id="githubToken" placeholder="ghp_... or github_pat_..." autocomplete="off">
-                    <small>💡 Required for private repository access and higher rate limits</small>
-                </div>
-                
-                <div class="config-group">
-                    <button id="validateTokenBtn" class="btn-primary">Validate Token</button>
-                    <span id="tokenValidationStatus" class="validation-status hidden"></span>
-                </div>
+                <form id="githubTokenForm">
+                    <div class="config-group">
+                        <label for="githubToken">GitHub Personal Access Token:</label>
+                        <input type="password" id="githubToken" placeholder="ghp_... or github_pat_..." autocomplete="off">
+                        <small>💡 Required for private repository access and higher rate limits</small>
+                    </div>
+                    
+                    <div class="config-group">
+                        <button id="validateTokenBtn" class="btn-primary" type="button">Validate Token</button>
+                        <span id="tokenValidationStatus" class="validation-status hidden"></span>
+                    </div>
+                </form>
             </div>
 
             <!-- Step 2: Repository Selection -->
