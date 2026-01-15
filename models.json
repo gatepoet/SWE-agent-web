@@ -10,8 +10,7 @@
     "supports_reasoning": true
   },
   "openai/mistralai/devstral-small-2-2512": {
-    "max_input_tokens": 160000,
-    "max_output_tokens": 4000,
+    "max_input_tokens": 70000,
     "input_cost_per_token": 5e-06,
     "output_cost_per_token": 5e-06,
     "litellm_provider": "openai",
@@ -45,12 +44,15 @@
   },
   "openai/open-thoughts_openthinker-agent-v1": {
     "max_input_tokens": 40960,
-    "input_cost_per_token": 0.0001,
-    "output_cost_per_token": 0.0002,
+    "input_cost_per_token": 5e-06,
+    "output_cost_per_token": 5e-06,
     "litellm_provider": "openai",
     "mode": "chat",
     "supports_function_calling": true,
-    "supports_prompt_caching": false,
-    "supports_reasoning": true
+    "supports_prompt_caching": true,
+    "supports_reasoning": true,
+    "supports_response_schema": true,
+    "supports_system_messages": true,
+    "supports_vision": false
   }
 }

@@ -40,12 +40,12 @@
                 <p class="step-description">Search for and select the repository containing your issue</p>
                 
                 <div class="config-group">
-                    <label id="github-repo-label" for="github-repo-input">GitHub Repository:</label>
-                    <auto-complete id="github-repo-auto-complete" src="/api/github/search" for="github-repo-results" aria-labelledby="github-repo-label">
-                        <input type="text" id="github-repo-input" name="githubRepoUrl" aria-labelledby="github-repo-label" placeholder="Search for repository (e.g., owner/repo)">
-                        <button id="github-repo-clear">×</button>
-                        <ul id="github-repo-results"></ul>
-                        <div id="github-repo-results-feedback" class="sr-only"></div>
+                    <label id="github-repo-label" for="github-repo">GitHub Repository:</label>
+                    <auto-complete id="github-repo-auto-complete" src="/api/github/search" for="github-repo-popup" aria-labelledby="github-repo-label">
+                        <input type="text" name="github-repo" aria-labelledby="github-repo-label" placeholder="Search for repository (e.g., owner/repo)" autocomplete="github-repo">
+                        <button id="github-repo-clear">X</button>
+                        <ul id="github-repo-popup"></ul>
+                        <div id="github-repo-popup-feedback" class="sr-only"></div>
                     </auto-complete>
                 </div>
                 

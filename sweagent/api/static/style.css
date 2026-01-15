@@ -531,6 +531,8 @@ header h1 {
   background-color: white;
   border-top: 1px solid #ddd;
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: 250px;
 }
 
 .code-block code {
@@ -1103,4 +1105,36 @@ auto-complete [role="option"]:hover {
 auto-complete [aria-disabled="true"] {
   color: #656d76;
   opacity: 0.6;
+}
+
+/* Collapsible observation messages */
+.toggle-input {
+  display: none;
+}
+
+.observation-message {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-in-out;
+}
+
+.toggle-input:checked ~ .observation-message {
+  max-height: 1000px; /* Adjust this value if the content might be taller */
+}
+
+.arrow {
+  display: inline-block;
+  transition: transform 0.3s ease-in-out;
+  transform: rotate(-90deg); /* Closed state: rotates ▼ to point right like ► */
+}
+
+.toggle-input:checked ~ .tool-call .arrow {
+  transform: rotate(0deg); /* Open state: ▼ points down */
+}
+
+.tool-header label {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5em; /* Optional spacing for better layout */
 }

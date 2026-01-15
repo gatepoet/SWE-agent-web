@@ -1,7 +1,7 @@
 // Connect to Socket.IO server
 document.addEventListener("DOMContentLoaded", function () {
   const socket = io();
-
+  const stepMap = new Map();
   // DOM elements for workflow steps
   const githubTokenSection = document.getElementById("githubTokenSection");
   const repositorySelectionSection = document.getElementById("repositorySelectionSection");
@@ -18,7 +18,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const validateTokenBtn = document.getElementById("validateTokenBtn");
   const tokenValidationStatus = document.getElementById("tokenValidationStatus");
   
-  const githubRepoUrlInput = document.getElementById("github-repo-input");
   const branchSelectionGroup = document.getElementById("branchSelectionGroup");
   const githubBranchSelect = document.getElementById("githubBranch");
   const selectedRepoInfo = document.getElementById("selectedRepoInfo");
@@ -110,9 +109,11 @@ document.addEventListener("DOMContentLoaded", function () {
         setTimeout(goToNextStep, 500);
       }
     });
-
-    // Repository selection - use the auto-complete element's events
-    githubRepoUrlInput.addEventListener("change", function() {
+    
+    const completer = document.getElementById("github-repo-auto-complete");
+    completer.addEventListener('auto-complete-change', function(event) {
+      console.log('Auto-completed value chosen or cleared', completer.value)
+      console.log('Related input element', event.relatedTarget)
       if (this.value) {
         selectedRepository = this.value;
         updateSelectedRepoDisplay();
@@ -121,7 +122,6 @@ document.addEventListener("DOMContentLoaded", function () {
         fetchGitHubBranches(this.value);
       }
     });
-    const completer = document.getElementById("github-repo-auto-complete");
     const container = completer.parentElement;
     completer.addEventListener("loadstart", () =>
       container.classList.add("is-loading"),
@@ -616,9 +616,13 @@ document.addEventListener("DOMContentLoaded", function () {
     );
   }
 
-  // Escape HTML to prevent XSS
+  // Implement function to escape HTML for preventing XSS attacks
   function escapeHtml(text) {
-    const div = document.createElement("div");
+    if (!text || typeof text !== 'string') {
+      return text;
+    }
+
+    const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
   }
@@ -628,75 +632,32 @@ document.addEventListener("DOMContentLoaded", function () {
     return text.substring(0, maxLength) + "...";
   }
 
-  // Format a component for the timeline view
-  function formatComponent(label, content, type) {
-    let contentClass = "component-content";
-    if (type === "thought") contentClass += " thought-content";
-    else if (type === "action") contentClass += " action-content";
-    else if (type === "observation") contentClass += " observation-content";
-
-    return `
-            <div class="${contentClass}">
-                <strong>${label}:</strong> ${content}
-            </div>
-        `;
-  }
 
   // Add a step to the timeline view
   function addStepToTimeline(stepNum, stepData) {
     const stepCard = document.createElement("div");
     stepCard.className = "step-card";
+    stepCard.setAttribute("data-step", stepNum);
+    stepCard.setAttribute("data-open", "false");
 
-    let thoughtContent = "";
-    let actionContent = "";
-    let observationContent = "";
-    let responseContent = "";
+    const toggleId = `toggle-${stepNum}`;
 
     if (stepData.thought) {
-      thoughtContent = formatComponent("Thought", stepData.thought, "thought");
+      addThoughtMessage(stepCard, stepData.thought);
     }
+
+
 
     if (stepData.action) {
-      // Check if action is a bash command
-      const bashRegex = /^bash: (.+)$/i;
-      if (bashRegex.test(stepData.action)) {
-        const bashCommand = stepData.action.replace(bashRegex, "$1");
-        actionContent = formatComponent(
-          "Action",
-          `<pre>${escapeHtml(bashCommand)}</pre>`,
-          "action"
-        );
-      } else {
-        actionContent = formatComponent("Action", stepData.action, "action");
-      }
+      addToolCallMessage(stepCard, stepData.action, toggleId);
     }
 
-if (stepData.observation) {
-      // title = observation up to and included the first colon : box the rest of the content
-      const colonIndex = stepData.observation.indexOf(':');
-      let title, content;
-      if (colonIndex !== -1) {
-        title = stepData.observation.substring(0, colonIndex + 1);
-        content = stepData.observation.substring(colonIndex + 1).trim();
-      } else {
-        title = "👁️‍🗨️ Observation";
-        content = stepData.observation;
-      }
-      observationContent = formatComponent(title, content, "observation");
+    if (stepData.observation) {
+      addObservationMessage(stepCard, stepData.observation);
     }
-    if (stepData.response) {
-      responseContent = formatComponent("Response", stepData.response, "response");
-    }
-
-    stepCard.innerHTML = `
-            <div class="step-header">Step ${stepNum}</div>
-            ${thoughtContent}
-            ${actionContent}
-            ${observationContent}
-            ${responseContent}
-        `;
 
     timelineViewContainer.appendChild(stepCard);
+    stepMap.set(stepNum, stepCard);
   }
 
   // Add a chat message to the chat interface
@@ -715,7 +676,6 @@ if (stepData.observation) {
                 <div class="message-content">
                     <div class="code-header">
                         <span class="code-language">Bash</span>
-                        <button class="copy-button" onclick="copyToClipboard('${encodeHTML(content)}')">Copy</button>
                     </div>
                     <pre class="code-block"><code>${escapeHtml(bashMatch[1])}</code></pre>
                 </div>`;
@@ -833,9 +793,11 @@ if (stepData.observation) {
         // Switch to timeline view
         chatMessagesContainer.classList.add("hidden");
         timelineViewContainer.classList.remove("hidden");
-
+        timelineViewContainer.innerHTML="";
+        stepMap.clear();
         data.trajectory.forEach((step, index) => {
           const stepNum = index + 1;
+          stepMap.set(stepNum, step);
           addStepToTimeline(stepNum, step);
         });
       }
@@ -921,18 +883,15 @@ if (stepData.observation) {
       if (stepData.thought) {
         addThoughtMessage(stepContainer, stepData.thought);
       } else {
-        // Implied action (no thought needed)
-        addImpliedActionMessage(stepContainer, stepData.action);
+        // // Implied action (no thought needed)
+        // addImpliedActionMessage(stepContainer, stepData.action);
       }
-
+    
       // 2. Action (tool call)
       if (stepData.action) {
-        const bashRegex = /^bash: (.+)$/i;
-        if (bashRegex.test(stepData.action)) {
-          addToolCallMessage(stepContainer, "Bash", stepData.action.replace(bashRegex, "$1"));
-        } else {
-          addToolCallMessage(stepContainer, "Action", stepData.action);
-        }
+        const toggleId = `toggle-${stepNumber}`;
+
+        addToolCallMessage(stepContainer, stepData.action, toggleId);
       }
 
       // 3. Observation (result)
@@ -953,7 +912,7 @@ if (stepData.observation) {
     if (data.model_stats && Object.keys(data.model_stats).length > 0) {
       updateCostDisplay(data.model_stats);
       costDisplayContainer.classList.remove("hidden");
-      addModelStats(data.model_stats);
+      // addModelStats(data.model_stats);
     }
 
     refreshRunsList();
@@ -992,10 +951,10 @@ if (stepData.observation) {
   function addThoughtMessage(container, thought) {
     const msg = document.createElement("div");
     msg.className = "thought-message";
-    msg.innerHTML = `<span class="icon">🧠</span> <strong>Thought:</strong> ${thought}`;
+    msg.innerHTML = `<span class="icon">🧠</span> ${thought}`;
     container.appendChild(msg);
   }
-
+  
   function addImpliedActionMessage(container, action) {
     const msg = document.createElement("div");
     msg.className = "implied-action";
@@ -1003,26 +962,43 @@ if (stepData.observation) {
     container.appendChild(msg);
   }
 
-  function addToolCallMessage(container, type, action) {
+  function addToolCallMessage(container, action, toggleId) {
+    const bashRegex = /^bash: (.+)$/i;
+    let actionType = "Action";
+    if (bashRegex.test(action)) {
+      actionType = "Bash";
+      actionText = action.replace(bashRegex, "$1");
+    }
     const block = document.createElement("div");
     block.className = "tool-call";
     block.innerHTML = `
-      <div class="tool-header">
-        <span class="icon">⚙️</span>
-        <span class="tool-type">${type}</span>
-      </div>
-      <div class="tool-content">
-        <pre class="code-block"><code>${escapeHtml(action)}</code></pre>
-        <button class="copy-button" onclick="copyToClipboard('${encodeHTML(action)}')">Copy</button>
-      </div>
+    <div class="tool-header">
+    <label for="${toggleId}">
+    <span class="icon">⚙️</span>
+    <span class="tool-type">${actionType}</span>
+    <span class="arrow">▼</span>
+    </label>
+    </div>
+    <div class="tool-content output-content">
+    <pre class="code-block"><code>${escapeHtml(actionText)}</code></pre>
+    </div>
     `;
     container.appendChild(block);
+    // Add toggle input
+    const toggleInput = document.createElement("input");
+    toggleInput.type = "checkbox";
+    toggleInput.id = toggleId;
+    toggleInput.className = "toggle-input";
+    container.appendChild(toggleInput);
   }
 
   function addObservationMessage(container, observation) {
     const msg = document.createElement("div");
     msg.className = "observation-message";
-    msg.innerHTML = `<span class="icon">✅</span> <strong>Observation:</strong> ${observation}`;
+    msg.innerHTML = `
+    <div class="observation-content output-content">
+      <pre class="code-block"><code>${escapeHtml(observation)}</code></pre>
+    </div>`;
     container.appendChild(msg);
   }
 

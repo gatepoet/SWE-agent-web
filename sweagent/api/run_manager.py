@@ -1,9 +1,11 @@
 """Run management for the SWE-agent API."""
 
 from __future__ import annotations
+from sweagent.utils.github import _get_gh_issue_data
 
 import asyncio
 import logging
+import os
 import threading
 import time
 from typing import Any
@@ -113,7 +115,7 @@ def _run_single_with_result(config: RunSingleConfig, websocket_hook: WebSocketHo
 
 async def run_agent_async(
     run_id: str,
-    problem_statement: str,
+    problem_statement: str | dict[str,str],
     config_path: str | None = None,
     inline_config: dict[str, Any] | None = None,
     github_token: str = "",
@@ -121,13 +123,24 @@ async def run_agent_async(
 ):
     """Run SWE-agent asynchronously and emit updates via Socket.IO."""
     state = RunState(run_id)
-    state.problem_statement = problem_statement
+    if "type" in problem_statement and problem_statement["type"] == "github":
+        issue = _get_gh_issue_data(problem_statement["github_url"], token=github_token)
+        state.problem_statement = f"{issue.title} - {issue.body}"
+    else:
+        state.problem_statement = problem_statement
     set_run_state(run_id, state)
 
     try:
         # Emit start event
         if emit_update_callback:
             emit_update_callback(run_id, "start", {"run_id": run_id, "status": "started"})
+
+        # If a github_token was provided via API request, set it in the environment so
+        # downstream components (e.g., repo cloning, OpenPRHook, problem statement fetchers)
+        # will pick it up via os.getenv("GITHUB_TOKEN"). Do not log the raw token.
+        if github_token:
+            os.environ["GITHUB_TOKEN"] = github_token
+            logger.debug("GITHUB_TOKEN set for run %s (token redacted)", run_id)
 
         # Create config
         config = create_agent_config(problem_statement, config_path, inline_config)

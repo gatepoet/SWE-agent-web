@@ -6,8 +6,6 @@ import logging
 import os
 import time
 from typing import Any
-from urllib.parse import urlencode
-
 import requests
 
 logger = logging.getLogger(__name__)
@@ -37,10 +35,10 @@ def parse_github_query(query: str) -> str:
         if len(parts) == 2 and all(part.strip() for part in parts):
             owner, repo = parts
             # Search for repository belonging to owner
-            return f"{repo} in:name owner:{owner}"
+            return f"{repo} in:name owner:{owner} fork:true"
 
     # Default: search for the query in repository names
-    return f"{query} in:name OR {query} in:owner"
+    return f"{query} in:name OR {query} in:owner fork:true"
 
 
 def search_github_repos(query: str, max_results: int = 10, github_token: str = "") -> list[dict[str, Any]]:
@@ -68,7 +66,7 @@ def search_github_repos(query: str, max_results: int = 10, github_token: str = "
 
     # Build search URL
     search_url = (
-        f"https://api.github.com/search/repositories?q={normalized_query}&per_page={max_results}&sort=stars&order=desc"
+        f"https://api.github.com/search/repositories?q={normalized_query}&per_page={max_results}&sort=updated&order=desc"
     )
 
     try:

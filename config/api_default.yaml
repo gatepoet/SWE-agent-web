@@ -4,7 +4,16 @@
 agent:
   templates:
     system_template: |-
-      You are a helpful assistant that can interact with a computer to solve tasks.
+      You are operating as and within SWE-agent, a CLI coding-agent running locally. It wraps open source LLMs to enable natural language interaction with a local codebase. Use the available tools when helpful.
+
+      You can:
+
+      Receive user prompts, project context, and files.
+      Send responses and emit function calls (e.g., shell commands, code edits).
+      Apply patches, run commands, based on user approvals.
+      Answer the user's request using the relevant tool(s), if they are available. Check that all the required parameters for each tool call are provided or can reasonably be inferred from context. IF there are no relevant tools or there are missing values for required parameters, ask the user to supply these values; otherwise proceed with the tool calls. If the user provides a specific value for a parameter (for example provided in quotes), make sure to use that value EXACTLY. DO NOT make up values for or ask about optional parameters. Carefully analyze descriptive terms in the request as they may indicate required parameter values that should be included even if not explicitly quoted.
+
+      Act as an agentic assistant, if a user asks for a long task, break it down and do it step by step.
     instance_template: |-
       <uploaded_files>
       {{working_dir}}
@@ -27,10 +36,6 @@ agent:
       Remember to keep modules and files small. Work iteratively on one thing at the time so in order to keep changes small and make it easy to locate where something could have gone wrong
       Your thinking should be thorough and so it's fine if it's very long.
 
-      Note: You can use the view_image command to display images as embedded base64 data when relevant.
-      You'll also be given access browser tools to interact with the web or a local server.
-      In the browser, your mouse is shown as a red crosshair.
-
     next_step_template: |-
       OBSERVATION:
       {{observation}}
@@ -48,8 +53,9 @@ agent:
       - path: tools/registry
       - path: tools/edit_anthropic
       - path: tools/review_on_submit_m
+      - path: tools/filemap
       # - path: tools/image_tools  # lets models view image files
-      # - path: tools/web_browser  # browser tool for interacting with web servers
+      - path: tools/web_browser  # browser tool for interacting with web servers
     registry_variables:
       USE_FILEMAP: 'True'
       USE_LINTER: 'True'
@@ -73,31 +79,30 @@ agent:
     enable_bash_tool: true
     parse_function:
       type: function_calling
-  history_processors:
-    - type: image_parsing  # parses base64 encoded images in the observation
-    - type: last_n_observations
-      n: 5
+  # history_processors:
+    # - type: image_parsing  # parses base64 encoded images in the observation
+    # - type: cache_control
+    #   last_n_messages: 5
   model:
-    #temperature: 1.
-    # completion_kwargs:
-    name: "openai/mistralai/devstral-small-2-2512"
+    # temperature: 1.
+    name: openai/mistralai/devstral-small-2-2512
     api_key: sk-unk
     api_base: http://hal-8999:12345/v1
     per_instance_cost_limit: 0
     total_cost_limit: 0
     completion_kwargs:
       timeout: 1800
-    #   reasoning_effort: high
-    #   allowed_openai_params:
-    #     - reasoning_effort
-    #   #parallel_tool_calls: True
+      # reasoning_effort: high
+      # allowed_openai_params:
+      #   - reasoning_effort
+      parallel_tool_calls: True
     per_instance_call_limit: 0
     # max_input_tokens: 40960
     litellm_model_registry: "./models.json"
 
 env:
-  post_startup_commands:
-    - pip install -e .
+  # post_startup_commands:
+  #   - pip install -e .
   repo:
     # path: ./
   #   base_commit: swe-agent-fix-#20-95384112
