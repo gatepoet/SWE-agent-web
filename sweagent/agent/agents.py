@@ -1047,6 +1047,9 @@ class DefaultAgent(AbstractAgent):
             if output.get("tool_calls") is not None:
                 step.tool_call_ids = [call["id"] for call in output["tool_calls"]]
                 step.tool_calls = output["tool_calls"]
+            if step.thought.strip() == "" and "reasoning_content" in output:
+                step.thought = output["reasoning_content"]
+
             self.logger.info(f"💭 THOUGHT\n{step.thought}\n\n🎬 ACTION\n{step.action.strip()}")
             self._chook.on_actions_generated(step=step)
             return self.handle_action(step)
