@@ -29,13 +29,15 @@ agent:
 
       1. As a first step, it might be a good idea to find and read code relevant to the <pr_description>
       2. Create a script to test the error or feature and execute it with `python <filename.py>` using the bash tool, to confirm unsuccessful test.
-      3. Edit the source code of the repo to resolve the issue
-      4. Rerun your test script and confirm that the error is fixed!
+      3. Edit the sourcecode of the repo to resolve the issue
+      4. Rerun your reproduce script and confirm that the error is fixed!
       5. Think about edgecases and make sure your fix handles them as well
-
-      Remember to keep modules and files small. Work iteratively on one thing at the time so in order to keep changes small and make it easy to locate where something could have gone wrong
       Your thinking should be thorough and so it's fine if it's very long.
 
+      If you need to start a command that has long-running output (e.g. a web server or installing dependencies with npm or pip), you should _always_ use the following pattern:
+      server_command &> my_server_log.txt &
+
+      This way you can see the server's output in the my_server_log.txt file and it will not block the rest of your work.
     next_step_template: |-
       OBSERVATION:
       {{observation}}
@@ -50,12 +52,12 @@ agent:
       TQDM_DISABLE: '1'
       GIT_PAGER: cat
     bundles:
+      - path: tools/filemap
       - path: tools/registry
       - path: tools/edit_anthropic
       - path: tools/review_on_submit_m
-      - path: tools/filemap
       # - path: tools/image_tools  # lets models view image files
-      - path: tools/web_browser  # browser tool for interacting with web servers
+      # - path: tools/web_browser  # browser tool for interacting with web servers
     registry_variables:
       USE_FILEMAP: 'True'
       USE_LINTER: 'True'
@@ -66,9 +68,7 @@ agent:
           1. If you made any changes to your code after running the reproduction script, please run the reproduction script again.
             If the reproduction script is failing, please revisit your changes and make sure they are correct.
             If you have already removed your reproduction script, please ignore this step.
-          2. Remove your reproduction script (if you haven't done so already).
-          3. If you have modified any TEST files, please revert them to the state they had before you started fixing the issue.
-            You can do this with `git checkout -- /path/to/test/file.py`. Use below <diff> to find the files you need to revert.
+          2. Remove your reproduction script and other temporary files (if you haven't done so already).
           4. Run the submit command again to confirm.
 
           Here is a list of all of your changes:
@@ -101,9 +101,9 @@ agent:
     litellm_model_registry: "./models.json"
 
 env:
-  # post_startup_commands:
-  #   - pip install -e .
-  repo:
+  post_startup_commands:
+    - pip install -e .[dev]
+  # repo:
     # path: ./
   #   base_commit: swe-agent-fix-#20-95384112
   deployment:
@@ -111,5 +111,7 @@ env:
 actions:
   # apply_patch_locally: True
   open_pr: True
+  pr_config:
+    skip_if_commits_reference_issue: False
 # problem_statement:
 #   text: The last commit was successful in adding new functionality, but it removed the run details/chat output. Make sure that everything works for the web+api as expected. Remove unneeded files.

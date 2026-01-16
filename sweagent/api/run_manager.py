@@ -125,7 +125,7 @@ async def run_agent_async(
     state = RunState(run_id)
     if "type" in problem_statement and problem_statement["type"] == "github":
         issue = _get_gh_issue_data(problem_statement["github_url"], token=github_token)
-        state.problem_statement = f"{issue.title} - {issue.body}"
+        state.problem_statement = issue.title
     else:
         state.problem_statement = problem_statement
     set_run_state(run_id, state)

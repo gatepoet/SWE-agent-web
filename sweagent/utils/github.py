@@ -85,8 +85,9 @@ def _get_gh_issue_data(issue_url: str, *, token: str = ""):
     """
     owner, repo, issue_number = _parse_gh_issue_url(issue_url)
     api = GhApi(token=token)
-    return api.issues.get(owner, repo, issue_number)  # type: ignore
-
+    data = api.issues.get(owner, repo, issue_number)  # type: ignore
+    data.comments = api.issues.list_comments(owner, repo, issue_number)
+    return data
 
 def _get_problem_statement_from_github_issue(
     owner: str, repo: str, issue_number: str, *, token: str | None = ""
@@ -96,7 +97,11 @@ def _get_problem_statement_from_github_issue(
     issue = api.issues.get(owner, repo, issue_number)  # type: ignore
     title = issue.title if issue.title else ""
     body = issue.body if issue.body else ""
-    return f"{title}\n{body}\n"
+    comments = api.issues.list_comments(owner, repo, issue_number)
+    text = f"{title}\n{body}"
+    if len(comments):
+        text += "\n\n" + "\n".join([f"{c.user.login}: {c.body}" for c in comments])
+    return text
 
 
 def _get_associated_commit_urls(org: str, repo: str, issue_number: str, *, token: str = "") -> list[str]:
