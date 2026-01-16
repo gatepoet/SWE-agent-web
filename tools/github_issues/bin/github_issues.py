@@ -1,0 +1,255 @@
+#!/usr/bin/env python3
+"""
+GitHub Issues Tool for SWE-agent.
+
+This tool provides functionality to interact with GitHub Issues:
+- List issues
+- Get issue details  
+- Create new issue
+- Modify issue
+- Add subtask (comment)
+"""
+
+import argparse
+import json
+import os
+import sys
+from typing import Optional, List, Dict, Any
+
+# Global variable to allow mocking for tests
+_API_CLASS = None
+
+def _get_api_class():
+    """Get the API class to use. Allows overriding for testing."""
+    if _API_CLASS is not None:
+        return _API_CLASS
+    from ghapi.all import GhApi
+    return GhApi
+
+def set_api_class(api_class):
+    """Set the API class to use (for testing)."""
+    global _API_CLASS
+    _API_CLASS = api_class
+
+def get_github_token() -> str:
+    """Get GitHub token from environment variable or registry."""
+    # Try to get from environment first
+    token = os.getenv("GITHUB_TOKEN", "")
+    if token:
+        return token
+    
+    # Fallback: try to read from registry file
+    try:
+        with open("/tmp/registry.json", "r") as f:
+            registry_data = json.load(f)
+            token = registry_data.get("GITHUB_TOKEN", "")
+            if token:
+                return token
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    
+    return ""
+
+
+def list_issues(owner: str, repo: str, state: str = "open", max_results: int = 30) -> List[Dict[str, Any]]:
+    """List GitHub issues for a repository."""
+    token = get_github_token()
+    api = _get_api_class()(token=token)
+    
+    issues = []
+    try:
+        # Get all issues (including pull requests filtered out)
+        for issue in api.issues.list_for_repo(owner, repo, state=state, per_page=100):  # type: ignore
+            if not issue.pull_request:  # Filter out pull requests
+                issues.append({
+                    "number": issue.number,
+                    "title": issue.title,
+                    "state": issue.state,
+                    "html_url": issue.html_url,
+                    "body": issue.body or "",
+                    "created_at": issue.created_at,
+                    "updated_at": issue.updated_at,
+                })
+            
+            if len(issues) >= max_results:
+                break
+    except Exception as e:
+        print(f"Error listing issues: {e}", file=sys.stderr)
+        return []
+    
+    return issues
+
+
+def get_issue_details(owner: str, repo: str, issue_number: int) -> Optional[Dict[str, Any]]:
+    """Get details for a specific GitHub issue."""
+    token = get_github_token()
+    api = _get_api_class()(token=token)
+    
+    try:
+        issue = api.issues.get(owner, repo, issue_number)  # type: ignore
+        return {
+            "number": issue.number,
+            "title": issue.title,
+            "state": issue.state,
+            "html_url": issue.html_url,
+            "body": issue.body or "",
+            "created_at": issue.created_at,
+            "updated_at": issue.updated_at,
+            "labels": [label.name for label in issue.labels] if issue.labels else [],
+            "assignees": [assignee.login for assignee in issue.assignees] if issue.assignees else [],
+        }
+    except Exception as e:
+        print(f"Error getting issue details: {e}", file=sys.stderr)
+        return None
+
+
+def create_issue(owner: str, repo: str, title: str, body: str = "", labels: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+    """Create a new GitHub issue."""
+    token = get_github_token()
+    api = _get_api_class()(token=token)
+    
+    try:
+        issue_data = {
+            "title": title,
+            "body": body,
+            "labels": labels or [],
+        }
+        issue = api.issues.create(owner, repo, **issue_data)  # type: ignore
+        return {
+            "number": issue.number,
+            "title": issue.title,
+            "html_url": issue.html_url,
+            "state": issue.state,
+        }
+    except Exception as e:
+        print(f"Error creating issue: {e}", file=sys.stderr)
+        return None
+
+
+def modify_issue(owner: str, repo: str, issue_number: int, title: Optional[str] = None, body: Optional[str] = None, state: Optional[str] = None, labels: Optional[List[str]] = None) -> bool:
+    """Modify an existing GitHub issue."""
+    token = get_github_token()
+    api = _get_api_class()(token=token)
+    
+    try:
+        # Get current issue
+        current_issue = api.issues.get(owner, repo, issue_number)  # type: ignore
+        
+        # Build update data
+        update_data = {}
+        if title is not None:
+            update_data["title"] = title
+        if body is not None:
+            update_data["body"] = body
+        if state is not None:
+            update_data["state"] = state
+        
+        # Update labels if provided
+        if labels is not None:
+            update_data["labels"] = labels
+        
+        if update_data:
+            success = api.issues.update(owner, repo, issue_number, **update_data)  # type: ignore
+            return bool(success)
+        
+        # If no updates were specified, consider it a success (no-op)
+        return True
+    except Exception as e:
+        print(f"Error modifying issue: {e}", file=sys.stderr)
+        return False
+
+
+def add_comment(owner: str, repo: str, issue_number: int, body: str) -> bool:
+    """Add a comment to a GitHub issue."""
+    # Validate body is not empty
+    if not body or not body.strip():
+        print("Error adding comment: Body cannot be empty", file=sys.stderr)
+        return False
+    
+    token = get_github_token()
+    api = _get_api_class()(token=token)
+    
+    try:
+        api.issues.create_comment(owner, repo, issue_number, body)  # type: ignore
+        return True
+    except Exception as e:
+        print(f"Error adding comment: {e}", file=sys.stderr)
+        return False
+
+
+def main():
+    """Main entry point for the GitHub Issues tool."""
+    parser = argparse.ArgumentParser(description="GitHub Issues Tool")
+    
+    # Subcommands
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    
+    # List issues command
+    list_parser = subparsers.add_parser("list", help="List GitHub issues")
+    list_parser.add_argument("--owner", required=True, help="Repository owner")
+    list_parser.add_argument("--repo", required=True, help="Repository name")
+    list_parser.add_argument("--state", choices=["open", "closed", "all"], default="open", help="Issue state")
+    list_parser.add_argument("--max-results", type=int, default=30, help="Maximum number of results")
+    
+    # Get issue details command
+    get_parser = subparsers.add_parser("get", help="Get issue details")
+    get_parser.add_argument("--owner", required=True, help="Repository owner")
+    get_parser.add_argument("--repo", required=True, help="Repository name")
+    get_parser.add_argument("--issue-number", type=int, required=True, help="Issue number")
+    
+    # Create issue command
+    create_parser = subparsers.add_parser("create", help="Create new issue")
+    create_parser.add_argument("--owner", required=True, help="Repository owner")
+    create_parser.add_argument("--repo", required=True, help="Repository name")
+    create_parser.add_argument("--title", required=True, help="Issue title")
+    create_parser.add_argument("--body", default="", help="Issue body/content")
+    create_parser.add_argument("--labels", nargs="*", default=[], help="Labels for the issue")
+    
+    # Modify issue command
+    modify_parser = subparsers.add_parser("modify", help="Modify existing issue")
+    modify_parser.add_argument("--owner", required=True, help="Repository owner")
+    modify_parser.add_argument("--repo", required=True, help="Repository name")
+    modify_parser.add_argument("--issue-number", type=int, required=True, help="Issue number")
+    modify_parser.add_argument("--title", help="New title (optional)")
+    modify_parser.add_argument("--body", help="New body/content (optional)")
+    modify_parser.add_argument("--state", choices=["open", "closed"], help="New state (optional)")
+    modify_parser.add_argument("--labels", nargs="*", help="Labels to set (optional)")
+    
+    # Add comment command
+    comment_parser = subparsers.add_parser("comment", help="Add comment to issue")
+    comment_parser.add_argument("--owner", required=True, help="Repository owner")
+    comment_parser.add_argument("--repo", required=True, help="Repository name")
+    comment_parser.add_argument("--issue-number", type=int, required=True, help="Issue number")
+    comment_parser.add_argument("--body", required=True, help="Comment body/content")
+    
+    args = parser.parse_args()
+    
+    # Execute the appropriate command
+    if args.command == "list":
+        issues = list_issues(args.owner, args.repo, args.state, args.max_results)
+        print(json.dumps(issues))
+    elif args.command == "get":
+        issue = get_issue_details(args.owner, args.repo, args.issue_number)
+        if issue:
+            print(json.dumps(issue))
+        else:
+            print("null", file=sys.stderr)
+            sys.exit(1)
+    elif args.command == "create":
+        issue = create_issue(args.owner, args.repo, args.title, args.body, args.labels)
+        if issue:
+            print(json.dumps(issue))
+        else:
+            print("null", file=sys.stderr)
+            sys.exit(1)
+    elif args.command == "modify":
+        success = modify_issue(args.owner, args.repo, args.issue_number, 
+                             title=args.title, body=args.body, state=args.state, labels=args.labels)
+        print(json.dumps({"success": success}))
+    elif args.command == "comment":
+        success = add_comment(args.owner, args.repo, args.issue_number, args.body)
+        print(json.dumps({"success": success}))
+
+
+if __name__ == "__main__":
+    main()

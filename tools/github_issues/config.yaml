@@ -1,0 +1,45 @@
+tools:
+  github_issues:
+    signature: "github_issues <action> [--owner <owner>] [--repo <repo>] [--issue-number <issue_number>] [--title <title>] [--body <body>] [--state <state>] [--labels <labels>] [--max-results <max_results>]"
+    docstring: "Interact with GitHub Issues. Supports listing, getting details, creating, modifying issues, and adding comments."
+    arguments:
+      - name: action
+        type: string
+        description: "Action to perform (list, get, create, modify, comment)"
+        required: true
+        enum: ["list", "get", "create", "modify", "comment"]
+      - name: owner
+        type: string
+        description: "Repository owner/organization"
+        required: false
+      - name: repo
+        type: string
+        description: "Repository name"
+        required: false
+      - name: issue_number
+        type: integer
+        description: "Issue number (required for get, modify, comment actions)"
+        required: false
+      - name: title
+        type: string
+        description: "Issue title (required for create action, optional for modify)"
+        required: false
+      - name: body
+        type: string
+        description: "Issue body/content or comment text"
+        required: false
+      - name: state
+        type: string
+        description: "Issue state (open, closed) or max results for list action"
+        required: false
+        enum: ["open", "closed", "all"]
+      - name: labels
+        type: array
+        items:
+          type: string
+        description: "Labels for the issue (array of strings)"
+        required: false
+      - name: max_results
+        type: integer
+        description: "Maximum number of results to return (for list action)"
+        required: false

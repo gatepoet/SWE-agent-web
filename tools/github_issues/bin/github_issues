@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""
+Wrapper script for GitHub Issues Tool.
+This maintains backward compatibility with the original script name.
+"""
+
+import sys
+import os
+
+# Add the bin directory to Python path so we can import github_issues module
+sys.path.insert(0, os.path.dirname(__file__))
+
+# Import and run the main function
+from github_issues import main
+
+if __name__ == "__main__":
+    main()
