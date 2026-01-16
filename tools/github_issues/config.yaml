@@ -37,8 +37,8 @@ tools:
         description: "Issue number to retrieve"
         required: true
   github_issues_create:
-    signature: "github_issues create --owner <owner> --repo <repo> --title <title> [--body <body>] [--labels <labels>]"
-    docstring: "Create a new GitHub issue. Returns an object with number, title, html_url, and state."
+    signature: "github_issues create --owner <owner> --repo <repo> --title <title> [--body <body>] [--labels <labels> ...]"
+    docstring: "Create a new GitHub issue in the specified repository. Returns an object with number, title, html_url, and state."
     arguments:
       - name: owner
         type: string
@@ -60,10 +60,11 @@ tools:
         type: array
         items:
           type: string
-        description: "Array of label names to apply to the issue"
+        description: "Array of label names to apply to the issue (space-separated)"
         required: false
+        argument_format: "--labels {{value|join(' ')}}"
   github_issues_modify:
-    signature: "github_issues modify --owner <owner> --repo <repo> --issue-number <issue_number> [--title <title>] [--body <body>] [--state <state>] [--labels <labels>]"
+    signature: "github_issues modify --owner <owner> --repo <repo> --issue-number <issue_number> [--title <title>] [--body <body>] [--state <state>] [--labels <labels> ...]"
     docstring: "Modify an existing GitHub issue. Returns success status."
     arguments:
       - name: owner
@@ -95,8 +96,9 @@ tools:
         type: array
         items:
           type: string
-        description: "Array of label names to apply to the issue"
+        description: "Array of label names to apply to the issue (space-separated)"
         required: false
+        argument_format: "--labels {{value|join(' ')}}"
   github_issues_comment:
     signature: "github_issues comment --owner <owner> --repo <repo> --issue-number <issue_number> --body <body>"
     docstring: "Add a comment to a GitHub issue. Returns success status."

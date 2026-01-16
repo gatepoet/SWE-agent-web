@@ -1,0 +1,74 @@
+# Demo configuration showing how to use the github_issues toolkit
+# This configuration demonstrates using the github_issues tools to interact with GitHub repositories
+agent:
+  templates:
+    system_template: |-
+      You are a helpful assistant that can interact with GitHub repositories to solve tasks.
+      You have access to tools for listing, creating, getting, modifying, and commenting on GitHub issues.
+    instance_template: |-
+      <uploaded_files>
+      {{working_dir}}
+      </uploaded_files>
+      I've uploaded a code repository in the directory {{working_dir}}. Consider the following task:
+
+      <task_description>
+      {{problem_statement}}
+      </task_description>
+
+      Can you help me implement the necessary changes to address this task?
+      Your task is to use the github_issues tools to interact with GitHub repositories as needed.
+    next_step_template: |-
+      OBSERVATION:
+      {{observation}}
+    next_step_no_output_template: |-
+      Your command ran successfully and no output was produced.
+  tools:
+    env_variables:
+      PAGER: cat
+      MANPAGER: cat
+      LESS: -R
+      PIP_PROGRESS_BAR: 'off'
+      TQDM_DISABLE: '1'
+      GIT_PAGER: cat
+    bundles:
+      - path: tools/registry
+      - path: tools/edit_anthropic
+      - path: tools/github_issues  # Include the github_issues tool bundle
+    registry_variables:
+      USE_FILEMAP: 'true'
+      SUBMIT_REVIEW_MESSAGES:
+        - |
+          Thank you for your work on this GitHub-related task. Please carefully follow the steps below to help review your changes.
+
+          1. If you made any changes after using github_issues tools, verify they are correct by checking the GitHub repository.
+          2. Clean up any temporary files or test scripts you created.
+          3. Run the submit command again to confirm completion.
+
+          Here is a summary of your github_issues tool usage:
+
+          <github_activity>
+          {{github_activity}}
+          </github_activity>
+    enable_bash_tool: true
+    parse_function:
+      type: function_calling
+  history_processors:
+    - type: cache_control
+      last_n_messages: 2
+  model:
+    name: claude-sonnet-4-20250514
+env:
+  repo:
+    github_url: https://github.com/example/repo  # Example GitHub repository
+  deployment:
+    image: tiny
+    python_standalone_dir: ""
+problem_statement:
+  example_task: |
+    Create a new GitHub issue in the example repository with the following details:
+    - Title: "Feature Request: Add CI/CD Pipeline"
+    - Body: "We need to add a CI/CD pipeline to automatically test and deploy our application."
+    - Labels: ["enhancement", "ci/cd"]
+  
+  github_url:
+    https://github.com/example/repo/issues/1

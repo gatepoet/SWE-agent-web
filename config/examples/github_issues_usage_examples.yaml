@@ -1,0 +1,82 @@
+# GitHub Issues Toolkit Usage Examples
+# This file provides examples of how to use the github_issues tools for various scenarios
+
+examples:
+  # Example 1: List issues in a repository
+  list_issues:
+    description: "List all open issues in a GitHub repository"
+    command: "github_issues list --owner example --repo my-repo --state open"
+    expected_output: "Array of issue objects with number, title, state, etc."
+    
+  # Example 2: Get details for a specific issue
+  get_issue:
+    description: "Get detailed information about a specific GitHub issue"
+    command: "github_issues get --owner example --repo my-repo --issue-number 42"
+    expected_output: "Detailed issue object with all fields including comments and labels"
+    
+  # Example 3: Create a new issue
+  create_issue:
+    description: "Create a new GitHub issue with title, body, and labels"
+    command: "github_issues create --owner example --repo my-repo --title 'Bug: Login Failed' --body 'Users are unable to login due to authentication error' --labels bug high-priority"
+    expected_output: "Newly created issue object with number, title, html_url, etc."
+    
+  # Example 4: Modify an existing issue
+  modify_issue:
+    description: "Update the title and add labels to an existing issue"
+    command: "github_issues modify --owner example --repo my-repo --issue-number 42 --title 'Fixed: Login Issue Resolved' --labels bug fixed"
+    expected_output: "Success status indicating the issue was updated"
+    
+  # Example 5: Add a comment to an issue
+  add_comment:
+    description: "Add a comment to a GitHub issue"
+    command: "github_issues comment --owner example --repo my-repo --issue-number 42 --body 'I have reproduced this issue and will work on a fix.'"
+    expected_output: "Success status indicating the comment was added"
+
+tool_documentation:
+  github_issues_list:
+    purpose: "List GitHub issues for a repository"
+    use_case: "When you need to see all issues (open, closed, or all) in a repository"
+    parameters:
+      owner: "GitHub username or organization name"
+      repo: "Repository name"
+      state: "Filter by issue state (open, closed, or all)"
+      max_results: "Limit the number of results returned"
+    
+  github_issues_get:
+    purpose: "Get details for a specific GitHub issue"
+    use_case: "When you need detailed information about a particular issue"
+    parameters:
+      owner: "GitHub username or organization name"
+      repo: "Repository name"
+      issue_number: "The issue number to retrieve"
+    
+  github_issues_create:
+    purpose: "Create a new GitHub issue"
+    use_case: "When you need to report a bug, request a feature, or create any new issue"
+    parameters:
+      owner: "GitHub username or organization name"
+      repo: "Repository name"
+      title: "The title of the new issue (required)"
+      body: "The description/content of the issue (optional)"
+      labels: "Array of label names to apply to the issue (optional)"
+    
+  github_issues_modify:
+    purpose: "Modify an existing GitHub issue"
+    use_case: "When you need to update the title, body, state, or labels of an existing issue"
+    parameters:
+      owner: "GitHub username or organization name"
+      repo: "Repository name"
+      issue_number: "The issue number to modify (required)"
+      title: "New title for the issue (optional)"
+      body: "New content/description for the issue (optional)"
+      state: "New state for the issue (open or closed, optional)"
+      labels: "Array of label names to apply to the issue (optional)"
+    
+  github_issues_comment:
+    purpose: "Add a comment to a GitHub issue"
+    use_case: "When you need to add feedback, updates, or discussions to an existing issue"
+    parameters:
+      owner: "GitHub username or organization name"
+      repo: "Repository name"
+      issue_number: "The issue number to add the comment to (required)"
+      body: "Comment text/content (required)"
