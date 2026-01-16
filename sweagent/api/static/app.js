@@ -432,7 +432,10 @@ document.addEventListener("DOMContentLoaded", function () {
       
       // Add branch if specified
       if (selectedBranch) {
-        config.env.repo.branch = selectedBranch;
+        config.env.repo.base_commit = selectedBranch;
+        if (!config.actions) config.actions = {}
+        config.actions.open_pr = false;
+        // config.actions.push_gh_repo_url = `${selectedRepository}/${selectedBranch}`
       }
     }
 
@@ -656,7 +659,7 @@ document.addEventListener("DOMContentLoaded", function () {
       addObservationMessage(stepCard, stepData.observation);
     }
 
-    timelineViewContainer.appendChild(stepCard);
+    chatMessagesContainer.appendChild(stepCard);
     stepMap.set(stepNum, stepCard);
   }
 
@@ -791,9 +794,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // Use timeline view for trajectory steps
       if (data.trajectory && data.trajectory.length > 0) {
         // Switch to timeline view
-        chatMessagesContainer.classList.add("hidden");
-        timelineViewContainer.classList.remove("hidden");
-        timelineViewContainer.innerHTML="";
+        chatMessagesContainer.innerHTML="";
         stepMap.clear();
         data.trajectory.forEach((step, index) => {
           const stepNum = index + 1;
@@ -920,7 +921,6 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   // === Helper Functions ===
-  const stepMap = new Map();
   function getStepContainer(stepNumber) {
     if (!stepMap.has(stepNumber)) {
       const container = document.createElement("div");
@@ -964,6 +964,7 @@ document.addEventListener("DOMContentLoaded", function () {
   function addToolCallMessage(container, action, toggleId) {
     const bashRegex = /^bash: (.+)$/i;
     let actionType = "Action";
+    let actionText = action;
     if (bashRegex.test(action)) {
       actionType = "Bash";
       actionText = action.replace(bashRegex, "$1");
