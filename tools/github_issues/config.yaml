@@ -117,3 +117,4 @@ tools:
         type: string
         description: "Comment text/content"
         required: true
+state_command: "_state_github_issues"
