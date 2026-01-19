@@ -37,7 +37,7 @@ tools:
         description: "Issue number to retrieve"
         required: true
   github_issues_create:
-    signature: "github_issues create --owner <owner> --repo <repo> --title <title> [--body <body>] [--labels <labels>]"
+    signature: "github_issues create --owner <owner> --repo <repo> --title <title> [--body <body>] [--labels [LABELS ...]]"
     docstring: "Create a new GitHub issue. Returns an object with number, title, html_url, and state."
     arguments:
       - name: owner
@@ -63,7 +63,7 @@ tools:
         description: "Array of label names to apply to the issue"
         required: false
   github_issues_modify:
-    signature: "github_issues modify --owner <owner> --repo <repo> --issue-number <issue_number> [--title <title>] [--body <body>] [--state <state>] [--labels <labels>]"
+    signature: "github_issues modify --owner <owner> --repo <repo> --issue-number <issue_number> [--title <title>] [--body <body>] [--state <state>] [--labels [LABELS ...]]"
     docstring: "Modify an existing GitHub issue. Returns success status."
     arguments:
       - name: owner
