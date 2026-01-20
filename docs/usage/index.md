@@ -34,6 +34,16 @@ Just want to run it? See [getting started](../index.md) instead!
     </div>
   </a>
 
+  <a href="subroutine_feature/" class="nav-card-link">
+    <div class="nav-card">
+      <div class="nav-card-header">
+        <span class="material-icons nav-card-icon">code</span>
+        <span class="nav-card-title">Subroutine Feature</span>
+      </div>
+      <p class="nav-card-description">Learn about the subroutine feature and how to use it.</p>
+    </div>
+  </a>
+
   <a href="multimodal/" class="nav-card-link">
     <div class="nav-card">
       <div class="nav-card-header">

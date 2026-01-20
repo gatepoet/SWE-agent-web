@@ -81,3 +81,4 @@ SWE-agent is built and maintained by researchers from Princeton University and S
 * June 26: [Adding custom tools](usage/adding_custom_tools.md)
 * Apr 8: [Running SWE-agent competitively](usage/competitive_runs.md)
 * Mar 7: [Updated SWE-agent architecture diagram of 1.0](background/architecture.md)
+* [Subroutine feature](usage/subroutine_feature.md)
